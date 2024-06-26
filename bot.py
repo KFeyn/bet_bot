@@ -23,7 +23,7 @@ async def set_commands(bot: Bot):
         BotCommand(command='/change_bet', description='Change bet'),
         BotCommand(command='/check_others_bets', description='Check others bet'),
         BotCommand(command='/check_competition', description='Check competition results'),
-        BotCommand(command='/check_leaders ', description='Check points')
+        BotCommand(command='/check_leaders ', description='Check points of users')
     ]
     await bot.set_my_commands(commands)
 

@@ -169,7 +169,7 @@ async def second_team_goals_entered(call: types.CallbackQuery, state: FSMContext
         await state.update_data(previous_message_id=msg.message_id)
         await OrderPlaceBets.waiting_for_penalty_winner.set()
     else:
-        await state.update_data(is_penalty=False, penalty_winner=0)
+        await state.update_data(penalty_winner=0)
         await save_bet(call, state, pg_con)
 
 
@@ -177,17 +177,17 @@ async def penalty_winner_entered(call: types.CallbackQuery, state: FSMContext, p
     user_data = await state.get_data()
     await call.message.bot.delete_message(call.message.chat.id, user_data['previous_message_id'])
     penalty_winner = int(call.data.split('_')[1])
-    await state.update_data(is_penalty=True, penalty_winner=penalty_winner)
+    await state.update_data(penalty_winner=penalty_winner)
     await save_bet(call, state, pg_con)
 
 
 async def save_bet(call: types.CallbackQuery, state: FSMContext, pg_con: PostgresConnection):
     user_data = await state.get_data()
     await pg_con.insert_data('bets.bets',
-                             ['match_id', 'user_id', 'first_team_goals', 'second_team_goals', 'is_penalty',
+                             ['match_id', 'user_id', 'first_team_goals', 'second_team_goals',
                               'penalty_winner', 'group_id', 'competition_id'],
                              [(user_data['match_id'], user_data['user_id'], user_data['first_team_goals'],
-                               user_data['second_team_goals'], user_data['is_penalty'], user_data['penalty_winner'],
+                               user_data['second_team_goals'], user_data['penalty_winner'],
                                user_data['group_id'], user_data['competition_id'])])
 
     await call.message.answer("Your bet has been placed successfully!", reply_markup=types.ReplyKeyboardRemove())

@@ -61,7 +61,6 @@ async def send_image(call: types.CallbackQuery, state: FSMContext, pg_con: Postg
             ,first_team_goals
             ,second_team_goals
             ,second_team
-            ,is_penalty
             ,penalty_winner 
     from 
             bets.matches

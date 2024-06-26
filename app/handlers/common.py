@@ -1,7 +1,6 @@
 import logging
 from aiogram import Dispatcher, types
 from aiogram.dispatcher import FSMContext
-import aiogram.utils.markdown as fmt
 from aiogram.types.message import ContentType
 
 from ..model import User

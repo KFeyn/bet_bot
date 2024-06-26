@@ -115,7 +115,6 @@ async def send_image(call: types.CallbackQuery, state: FSMContext, pg_con: Postg
                 ,mtchs.second_team
                 ,betting.first_team_goals
                 ,betting.second_team_goals
-                ,betting.is_penalty
                 ,betting.penalty_winner
                 ,row_number() over (partition by betting.match_id order by betting.insert_date desc) as rn
                 
@@ -136,7 +135,6 @@ async def send_image(call: types.CallbackQuery, state: FSMContext, pg_con: Postg
                 ,first_team_goals
                 ,second_team_goals
                 ,second_team
-                ,is_penalty
                 ,penalty_winner
         from 
                 cte
