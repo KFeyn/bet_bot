@@ -28,7 +28,7 @@ def generate_teams_keyboard(first_team_name: str, second_team_name: str):
     return keyboard
 
 
-async def start_placing_a_bet(message: types.Message, state: FSMContext, pg_con: PostgresConnection):
+async def start_bet_process(message: types.Message, state: FSMContext, pg_con: PostgresConnection, new_bet=True):
     await state.finish()
 
     query_get = f"""
@@ -68,7 +68,15 @@ async def start_placing_a_bet(message: types.Message, state: FSMContext, pg_con:
         await OrderPlaceBets.waiting_for_comp_and_group_picking.set()
     else:
         await state.update_data(competition_id=comps[0]['competition_id'], group_id=comps[0]['group_id'])
-        await start_picking_match(message, state, pg_con)
+        await start_picking_match(message, state, pg_con, new_bet=new_bet)
+
+
+async def start_placing_a_bet(message: types.Message, state: FSMContext, pg_con: PostgresConnection):
+    await start_bet_process(message, state, pg_con, new_bet=True)
+
+
+async def start_changing_a_bet(message: types.Message, state: FSMContext, pg_con: PostgresConnection):
+    await start_bet_process(message, state, pg_con, new_bet=False)
 
 
 async def competition_picked(call: types.CallbackQuery, state: FSMContext, pg_con: PostgresConnection):
@@ -97,7 +105,7 @@ async def start_picking_match(message: types.Message, state: FSMContext, pg_con:
     else:
         user_data = await state.get_data()
         query_get = f"""
-        select 
+        select distinct
                 mtchs.first_team || ' - ' || mtchs.second_team as pair
                 ,betting.match_id as id
                 ,{user_id} as user_id
@@ -187,49 +195,6 @@ async def save_bet(call: types.CallbackQuery, state: FSMContext, pg_con: Postgre
     await call.message.answer("Your bet has been placed successfully!", reply_markup=types.ReplyKeyboardRemove())
     logging.info(f'Bet for match {user_data["match_id"]} for user {user_data["user_id"]} is written successfully')
     await state.finish()
-
-
-async def start_changing_a_bet(message: types.Message, state: FSMContext, pg_con: PostgresConnection):
-    await state.finish()
-
-    query_get = f"""
-    select 
-            comp.name || ' - ' || grp.name  as c_g_pair
-            ,comp.id as competition_id
-            ,grp.id as group_id
-    from 
-            bets.users_in_groups as uig
-    join 
-            bets.groups as grp
-                on grp.id = uig.group_id
-    join 
-            bets.groups_in_competitions as gic
-                    on uig.group_id = gic.group_id
-    join
-            bets.competitions as comp
-                    on comp.id = gic.competition_id
-                    and comp.start_date - now() > interval '24 hours'
-    where 
-            uig.user_id = ('x'||left(md5('{message.from_user.username}'), 16))::BIT(64)::BIGINT 
-    """
-    comps = await pg_con.get_data(query_get)
-
-    if len(comps) == 0:
-        await message.answer("You don't participate in any competition!")
-        return
-
-    elif len(comps) > 1:
-        keyboard = types.InlineKeyboardMarkup()
-        for comp in comps:
-            keyboard.add(types.InlineKeyboardButton(text=comp['c_g_pair'],
-                                                    callback_data=f"competition_{comp['competition_id']}_"
-                                                                  f"{comp['group_id']}"))
-        msg = await message.answer("Please choose a competition and group pair:", reply_markup=keyboard)
-        await state.update_data(previous_message_id=msg.message_id)
-        await OrderPlaceBets.waiting_for_comp_and_group_picking.set()
-    else:
-        await state.update_data(competition_id=comps[0]['competition_id'], group_id=comps[0]['group_id'])
-        await start_picking_match(message, state, pg_con, new_bet=False)
 
 
 def register_handlers_add_bet(dp: Dispatcher, pg_con: PostgresConnection):
