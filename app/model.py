@@ -6,12 +6,18 @@ import logging
 
 @dataclasses.dataclass
 class User:
-    telegram_id: str
+    id: int
+    first_name: str
+    last_name: str
+    nickname: str
 
     @classmethod
     def from_id(cls, row: tuple) -> User:
         return cls(
-            telegram_id=str(row[0])
+            id=int(row[0]),
+            first_name=str(row[1]),
+            last_name=str(row[2]),
+            nickname=str(row[3])
         )
 
     async def check_existing(self, pg_con: PostgresConnection) -> None:
@@ -21,10 +27,11 @@ class User:
         from 
                 bets.users
         where 
-                telegram_id = '{self.telegram_id}'
+                id = '{self.id}'
         """
         if await pg_con.get_data(query):
             pass
         else:
-            await pg_con.insert_data('bets.users', ['telegram_id'], [(self.telegram_id,)])
-            logging.info(f'User {self.telegram_id} created')
+            await pg_con.insert_data('bets.users', ['id', 'first_name', 'last_name', 'nickname'],
+                                     [(self.id, self.first_name, self.last_name, self.nickname)])
+            logging.info(f'User {self.nickname} created')

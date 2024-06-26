@@ -18,23 +18,14 @@ async def starting_message(message: types.Message, state: FSMContext, pg_con: Po
     """
     await state.finish()
 
-    user = User.from_id((message.from_user.username,))
+    user = User.from_id((message.from_user.id, message.from_user.first_name, message.from_user.last_name,
+                         message.from_user.username))
     await user.check_existing(pg_con)
 
     logging.info(f'User {message.from_user.first_name} {message.from_user.last_name} logged in')
 
     await message.answer("Hi! It's betting bot. Please check /help to know about existing commands",
                          parse_mode=types.ParseMode.HTML)
-
-
-async def helping_message(message: types.Message):
-    """
-    List of coommands
-
-    :param message: message
-    """
-    await message.answer(fmt.text("I know next commands:", "",
-                                  "", sep='\n'))
 
 
 async def wrong_command_message(message: types.Message):
@@ -54,5 +45,4 @@ def register_handlers_common(dp: Dispatcher, pg_con: PostgresConnection):
         await starting_message(message, state, pg_con)
 
     dp.register_message_handler(starting_message_wrapper, commands="start", state="*")
-    dp.register_message_handler(helping_message, commands="help")
     dp.register_message_handler(wrong_command_message, content_types=ContentType.ANY)

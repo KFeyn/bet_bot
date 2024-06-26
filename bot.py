@@ -6,7 +6,8 @@ from aiogram.contrib.fsm_storage.memory import MemoryStorage
 from aiogram import Bot, Dispatcher
 
 from app.handlers.common import register_handlers_common
-from app.handlers.add_bet import register_handlers_add_bet
+from app.handlers.placing_bets import register_handlers_add_bet
+from app.handlers.check_bets import register_handlers_check_bet
 from app.dbworker import PostgresConnection
 
 logging.basicConfig(
@@ -21,8 +22,7 @@ async def set_commands(bot: Bot):
         BotCommand(command='/change_bet', description='Change bet'),
         BotCommand(command='/check_others_bets', description='Check others bet'),
         BotCommand(command='/check_competition', description='Check competition results'),
-        BotCommand(command='/check_leaders ', description='Check points'),
-        BotCommand(command='/help', description='Help')
+        BotCommand(command='/check_leaders ', description='Check points')
     ]
     await bot.set_my_commands(commands)
 
@@ -34,6 +34,7 @@ async def main():
     dp = Dispatcher(bot, storage=MemoryStorage())
 
     register_handlers_add_bet(dp, pg_connection)
+    register_handlers_check_bet(dp, pg_connection)
     register_handlers_common(dp, pg_connection)
 
     await set_commands(bot)

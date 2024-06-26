@@ -47,9 +47,9 @@ async def start_bet_process(message: types.Message, state: FSMContext, pg_con: P
     join
             bets.competitions as comp
                     on comp.id = gic.competition_id
-                    and comp.start_date - now() > interval '24 hours'
+                    and comp.end_date - now() > interval '24 hours'
     where 
-            uig.user_id = ('x'||left(md5('{message.from_user.username}'), 16))::BIT(64)::BIGINT 
+            uig.user_id = {message.from_user.id}
     """
     comps = await pg_con.get_data(query_get)
 
@@ -86,36 +86,34 @@ async def competition_picked(call: types.CallbackQuery, state: FSMContext, pg_co
 
 
 async def start_picking_match(message: types.Message, state: FSMContext, pg_con: PostgresConnection, new_bet=True):
-    user_id = f"('x'||left(md5('{message.from_user.username}'), 16))::BIT(64)::BIGINT"
-
+    user_data = await state.get_data()
     if new_bet:
         query_get = f"""
         select 
                 first_team || ' - ' || second_team as pair
                 ,id
-                ,{user_id} as user_id
+                ,{message.from_user.id} as user_id
         from 
                 bets.matches 
         where
                 not exists (select 1 from bets.bets where bets.matches.id = bets.bets.match_id
-                and bets.bets.user_id = {user_id}
-                )
+                and bets.bets.user_id = {message.from_user.id})
+                and competition_id = {user_data['competition_id']}
                 and dt - now() > interval '24 hours'
         """
     else:
-        user_data = await state.get_data()
         query_get = f"""
         select distinct
                 mtchs.first_team || ' - ' || mtchs.second_team as pair
                 ,betting.match_id as id
-                ,{user_id} as user_id
+                ,{message.from_user.id} as user_id
         from 
                 bets.bets as betting
         join 
                 bets.matches as mtchs
                     on betting.match_id = mtchs.id
         where
-                betting.user_id = {user_id}
+                betting.user_id = {message.from_user.id}
                 and mtchs.dt - now() > interval '24 hours'
                 and betting.competition_id = {user_data['competition_id']}
                 and betting.group_id = {user_data['group_id']}
