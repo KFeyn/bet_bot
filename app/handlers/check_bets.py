@@ -4,23 +4,13 @@ from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters.state import State, StatesGroup
 
 from ..dbworker import PostgresConnection
-from ..utilities import make_plot
+from ..utilities import make_plot, generate_stage_keyboard
 
 
 class OrderCheckBets(StatesGroup):
     waiting_for_comp_and_group_picking = State()
     waiting_for_user_picking = State()
     waiting_for_stage_picking = State()
-
-
-def generate_stage_keyboard():
-    keyboard = types.InlineKeyboardMarkup()
-    keyboard.add(types.InlineKeyboardButton(text='group stage', callback_data='stage_group stage'))
-    keyboard.add(types.InlineKeyboardButton(text='1/8 final', callback_data='stage_1/8 final'))
-    keyboard.add(types.InlineKeyboardButton(text='1/4 final', callback_data='stage_1/4 final'))
-    keyboard.add(types.InlineKeyboardButton(text='1/2 final', callback_data='stage_1/2 final'))
-    keyboard.add(types.InlineKeyboardButton(text='final', callback_data='stage_final'))
-    return keyboard
 
 
 async def start_check_process(message: types.Message, state: FSMContext, pg_con: PostgresConnection):
@@ -42,7 +32,7 @@ async def start_check_process(message: types.Message, state: FSMContext, pg_con:
     join
             bets.competitions as comp
                     on comp.id = gic.competition_id
-                    and comp.end_date - now() > interval '24 hours'
+                    and now() - comp.end_date < interval '168 hours'
     where 
             uig.user_id = {message.from_user.id}
     """
@@ -59,10 +49,11 @@ async def start_check_process(message: types.Message, state: FSMContext, pg_con:
                                                     callback_data=f"competition_{comp['competition_id']}_"
                                                                   f"{comp['group_id']}"))
         msg = await message.answer("Please choose a competition and group pair:", reply_markup=keyboard)
-        await state.update_data(previous_message_id=msg.message_id)
+        await state.update_data(previous_message_id=msg.message_id, asking_user_id=str(message.from_user.id))
         await OrderCheckBets.waiting_for_comp_and_group_picking.set()
     else:
-        await state.update_data(competition_id=comps[0]['competition_id'], group_id=comps[0]['group_id'])
+        await state.update_data(competition_id=comps[0]['competition_id'], group_id=comps[0]['group_id'],
+                                asking_user_id=str(message.from_user.id))
         await start_picking_user(message, state, pg_con)
 
 
@@ -90,7 +81,7 @@ async def start_picking_user(message: types.Message, state: FSMContext, pg_con: 
     users = await pg_con.get_data(query_get)
 
     if len(users) == 0:
-        await message.answer("There is no bets from this user!")
+        await message.answer("There are no bets from this user!")
         return
 
     keyboard = types.InlineKeyboardMarkup()
@@ -108,8 +99,7 @@ async def user_picked(call: types.CallbackQuery, state: FSMContext):
     user_id, user_nickname = call.data.split('__')[1], call.data.split('__')[2]
     await state.update_data(user_id=user_id, user_nickname=user_nickname)
 
-    msg = await call.message.answer("Please enter the goals for the first team:",
-                                    reply_markup=generate_stage_keyboard())
+    msg = await call.message.answer("Please enter the stage:", reply_markup=generate_stage_keyboard())
     await state.update_data(previous_message_id=msg.message_id)
     await OrderCheckBets.waiting_for_stage_picking.set()
 
@@ -117,6 +107,7 @@ async def user_picked(call: types.CallbackQuery, state: FSMContext):
 async def send_image(call: types.CallbackQuery, state: FSMContext, pg_con: PostgresConnection):
     stage = call.data.split('_')[1]
     user_data = await state.get_data()
+    is_user_you = "" if user_data['user_id'] == user_data['asking_user_id'] else "and mtchs.dt < now()"
     query_get = f"""
     with cte as (
         select 
@@ -138,6 +129,7 @@ async def send_image(call: types.CallbackQuery, state: FSMContext, pg_con: Postg
                 and betting.group_id = {user_data['group_id']}
                 and betting.user_id = {user_data['user_id']}
                 and mtchs.stage = '{stage}'
+                {is_user_you}
         )
         select
                 first_team
@@ -160,7 +152,7 @@ async def send_image(call: types.CallbackQuery, state: FSMContext, pg_con: Postg
 
     keys = list(bets[0].keys())
     values = [list(bet.values()) for bet in bets]
-    image = await make_plot([keys] + values, f"Bets of {user_data['user_nickname']} for {stage}")
+    image = make_plot([keys] + values, f"Bets of {user_data['user_nickname']} for {stage}")
 
     await call.message.bot.send_photo(call.message.chat.id, image, caption="Here are results")
     logging.info(f"Image of bets for {user_data['user_nickname']} sent successfully")
@@ -173,16 +165,13 @@ def register_handlers_check_bet(dp: Dispatcher, pg_con: PostgresConnection):
     async def competition_picked_wrapper(call: types.CallbackQuery, state: FSMContext):
         await competition_picked(call, state, pg_con)
 
-    async def user_picked_wrapper(call: types.CallbackQuery, state: FSMContext):
-        await user_picked(call, state)
-
     async def send_image_wrapper(call: types.CallbackQuery, state: FSMContext):
         await send_image(call, state, pg_con)
 
     dp.register_message_handler(start_check_process_wrapper, commands="check_others_bets", state="*")
     dp.register_callback_query_handler(competition_picked_wrapper, lambda call: call.data.startswith('competition_'),
                                        state=OrderCheckBets.waiting_for_comp_and_group_picking)
-    dp.register_callback_query_handler(user_picked_wrapper, lambda call: call.data.startswith('user__'),
+    dp.register_callback_query_handler(user_picked, lambda call: call.data.startswith('user__'),
                                        state=OrderCheckBets.waiting_for_user_picking)
     dp.register_callback_query_handler(send_image_wrapper, lambda call: call.data.startswith('stage_'),
                                        state=OrderCheckBets.waiting_for_stage_picking)

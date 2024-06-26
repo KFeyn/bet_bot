@@ -8,6 +8,7 @@ from aiogram import Bot, Dispatcher
 from app.handlers.common import register_handlers_common
 from app.handlers.placing_bets import register_handlers_add_bet
 from app.handlers.check_bets import register_handlers_check_bet
+from app.handlers.check_competition import register_handlers_check_competition
 from app.dbworker import PostgresConnection
 
 logging.basicConfig(
@@ -35,6 +36,7 @@ async def main():
 
     register_handlers_add_bet(dp, pg_connection)
     register_handlers_check_bet(dp, pg_connection)
+    register_handlers_check_competition(dp, pg_connection)
     register_handlers_common(dp, pg_connection)
 
     await set_commands(bot)

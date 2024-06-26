@@ -37,7 +37,7 @@ async def wrong_command_message(message: types.Message):
 
     logging.info(f'User {message.from_user.first_name} {message.from_user.last_name} wrote {message.text}')
 
-    await message.answer("Wrong command. Check /help")
+    await message.answer("Wrong command")
 
 
 def register_handlers_common(dp: Dispatcher, pg_con: PostgresConnection):
