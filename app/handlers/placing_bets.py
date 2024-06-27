@@ -81,6 +81,8 @@ async def start_changing_a_bet(message: types.Message, state: FSMContext, pg_con
 
 async def competition_picked(call: types.CallbackQuery, state: FSMContext, pg_con: PostgresConnection):
     competition_id, group_id = call.data.split('_')[1], call.data.split('_')[2]
+    user_data = await state.get_data()
+    await call.message.bot.delete_message(call.message.chat.id, user_data['previous_message_id'])
     await state.update_data(competition_id=competition_id, group_id=group_id)
     await start_picking_match(call.message, state, pg_con)
 

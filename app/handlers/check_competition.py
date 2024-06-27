@@ -4,7 +4,7 @@ from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters.state import State, StatesGroup
 
 from ..dbworker import PostgresConnection
-from ..utilities import make_plot, generate_stage_keyboard
+from ..utilities import make_plot_two_teams, generate_stage_keyboard
 
 
 class OrderCheckCompetitions(StatesGroup):
@@ -62,6 +62,7 @@ async def send_image(call: types.CallbackQuery, state: FSMContext, pg_con: Postg
             ,second_team_goals
             ,second_team
             ,penalty_winner 
+            ,dt::timestamp - interval '3 hours' as dt_in_utc_0
     from 
             bets.matches
     where 
@@ -77,7 +78,7 @@ async def send_image(call: types.CallbackQuery, state: FSMContext, pg_con: Postg
 
     keys = list(matches[0].keys())
     values = [list(match.values()) for match in matches]
-    image = make_plot([keys] + values, f"Matches of {user_data['competition_name']} for {stage}")
+    image = make_plot_two_teams([keys] + values, f"Matches of {user_data['competition_name']} for {stage}")
 
     await call.message.bot.send_photo(call.message.chat.id, image, caption="Here are results")
     logging.info(f"Image of bets for {user_data['asking_username']} sent successfully")

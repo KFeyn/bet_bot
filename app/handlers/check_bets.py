@@ -4,7 +4,7 @@ from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters.state import State, StatesGroup
 
 from ..dbworker import PostgresConnection
-from ..utilities import make_plot, generate_stage_keyboard
+from ..utilities import make_plot_two_teams, generate_stage_keyboard
 
 
 class OrderCheckBets(StatesGroup):
@@ -59,6 +59,8 @@ async def start_check_process(message: types.Message, state: FSMContext, pg_con:
 
 async def competition_picked(call: types.CallbackQuery, state: FSMContext, pg_con: PostgresConnection):
     competition_id, group_id = call.data.split('_')[1], call.data.split('_')[2]
+    user_data = await state.get_data()
+    await call.message.bot.delete_message(call.message.chat.id, user_data['previous_message_id'])
     await state.update_data(competition_id=competition_id, group_id=group_id)
     await start_picking_user(call.message, state, pg_con)
 
@@ -150,7 +152,7 @@ async def send_image(call: types.CallbackQuery, state: FSMContext, pg_con: Postg
 
     keys = list(bets[0].keys())
     values = [list(bet.values()) for bet in bets]
-    image = make_plot([keys] + values, f"Bets of {user_data['user_nickname']} for {stage}")
+    image = make_plot_two_teams([keys] + values, f"Bets of {user_data['user_nickname']} for {stage}")
 
     await call.message.bot.send_photo(call.message.chat.id, image, caption="Here are results")
     logging.info(f"Image of bets for {user_data['user_nickname']} sent successfully")

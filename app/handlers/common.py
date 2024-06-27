@@ -27,6 +27,14 @@ async def starting_message(message: types.Message, state: FSMContext, pg_con: Po
                          parse_mode=types.ParseMode.HTML)
 
 
+async def helping_message(message: types.Message):
+    """
+    List of coommands
+    :param message: message
+    """
+    await message.answer('Check rules here https://telegra.ph/Match-Prediction-Competition-Rules-06-27')
+
+
 async def wrong_command_message(message: types.Message):
     """
     Reacts on wrong commands
@@ -44,4 +52,5 @@ def register_handlers_common(dp: Dispatcher, pg_con: PostgresConnection):
         await starting_message(message, state, pg_con)
 
     dp.register_message_handler(starting_message_wrapper, commands="start", state="*")
+    dp.register_message_handler(helping_message, commands="help", state="*")
     dp.register_message_handler(wrong_command_message, content_types=ContentType.ANY)

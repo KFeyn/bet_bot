@@ -9,6 +9,7 @@ from app.handlers.common import register_handlers_common
 from app.handlers.placing_bets import register_handlers_add_bet
 from app.handlers.check_bets import register_handlers_check_bet
 from app.handlers.check_competition import register_handlers_check_competition
+from app.handlers.check_leaders import register_handlers_check_leaders
 from app.dbworker import PostgresConnection
 
 logging.basicConfig(
@@ -23,7 +24,8 @@ async def set_commands(bot: Bot):
         BotCommand(command='/change_bet', description='Change bet'),
         BotCommand(command='/check_others_bets', description='Check others bet'),
         BotCommand(command='/check_competition', description='Check competition results'),
-        BotCommand(command='/check_leaders ', description='Check points of users')
+        BotCommand(command='/check_leaders', description='Check points of users'),
+        BotCommand(command='/help', description='Help')
     ]
     await bot.set_my_commands(commands)
 
@@ -37,6 +39,7 @@ async def main():
     register_handlers_add_bet(dp, pg_connection)
     register_handlers_check_bet(dp, pg_connection)
     register_handlers_check_competition(dp, pg_connection)
+    register_handlers_check_leaders(dp, pg_connection)
     register_handlers_common(dp, pg_connection)
 
     await set_commands(bot)
