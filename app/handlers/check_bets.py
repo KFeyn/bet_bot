@@ -108,7 +108,10 @@ async def user_picked(call: types.CallbackQuery, state: FSMContext):
 async def send_image(call: types.CallbackQuery, state: FSMContext, pg_con: PostgresConnection):
     stage = call.data.split('_')[1]
     user_data = await state.get_data()
-    is_user_you = "" if user_data['user_id'] == user_data['asking_user_id'] else "and mtchs.dt < now()"
+    await call.message.bot.delete_message(call.message.chat.id, user_data['previous_message_id'])
+    is_user_you = f"and betting.user_id = {user_data['asking_user_id']}" \
+        if user_data['user_id'] == user_data['asking_user_id'] \
+        else "and mtchs.dt < now()"
     query_get = f"""
     with cte as (
         select 
@@ -146,7 +149,7 @@ async def send_image(call: types.CallbackQuery, state: FSMContext, pg_con: Postg
     bets = await pg_con.get_data(query_get)
 
     if len(bets) == 0:
-        await call.message.answer('There are no bets from this user on this stage!')
+        await call.message.answer('There are no bets from this user on this stage or match didn\'t started yet')
         return
 
     keys = list(bets[0].keys())
