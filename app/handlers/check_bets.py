@@ -69,7 +69,8 @@ async def start_picking_user(message: types.Message, state: FSMContext, pg_con: 
     query_get = f"""
     select 
             users.id
-            ,case when id = {message.from_user.id} then 'Me' else users.nickname end as nickname
+            ,case when id = {message.from_user.id} then 'Me' else users.first_name || ' ' || users.last_name || ' (' || 
+            users.nickname  || ')' end as nickname
     from 
             bets.users as users
     where 

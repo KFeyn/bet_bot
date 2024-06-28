@@ -47,7 +47,7 @@ async def start_bet_process(message: types.Message, state: FSMContext, pg_con: P
     join
             bets.competitions as comp
                     on comp.id = gic.competition_id
-                    and comp.end_date - now() > interval '24 hours'
+                    and comp.end_date - now() > interval '1 hours'
     where 
             uig.user_id = {message.from_user.id}
     """
@@ -102,7 +102,7 @@ async def start_picking_match(message: types.Message, state: FSMContext, pg_con:
                 not exists (select 1 from bets.bets where bets.matches.id = bets.bets.match_id
                 and bets.bets.user_id = {message.from_user.id})
                 and competition_id = {user_data['competition_id']}
-                and dt - now() > interval '24 hours'
+                and dt - now() > interval '1 hours'
         order by dt
         """
     else:
@@ -111,7 +111,7 @@ async def start_picking_match(message: types.Message, state: FSMContext, pg_con:
                 mtchs.first_team || ' - ' || mtchs.second_team as pair
                 ,betting.match_id as id
                 ,{message.from_user.id} as user_id
-                ,dt::timestamp - interval '3 hours' as dt_in_utc_0
+                ,mtchs.dt::timestamp - interval '3 hours' as dt_in_utc_0
         from 
                 bets.bets as betting
         join 
@@ -119,10 +119,10 @@ async def start_picking_match(message: types.Message, state: FSMContext, pg_con:
                     on betting.match_id = mtchs.id
         where
                 betting.user_id = {message.from_user.id}
-                and mtchs.dt - now() > interval '24 hours'
+                and mtchs.dt - now() > interval '1 hours'
                 and betting.competition_id = {user_data['competition_id']}
                 and betting.group_id = {user_data['group_id']}
-        order by dt
+        order by mtchs.dt::timestamp - interval '3 hours'
         """
 
     teams = await pg_con.get_data(query_get)
