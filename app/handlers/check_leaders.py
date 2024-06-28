@@ -1,10 +1,9 @@
-import logging
 from aiogram import Dispatcher, types
 from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters.state import State, StatesGroup
 
 from ..dbworker import PostgresConnection
-from ..utilities import make_plot_points
+from ..utilities import make_plot_points, logger
 
 
 class OrderCheckLeaders(StatesGroup):
@@ -95,7 +94,7 @@ async def send_image(message: types.Message, state: FSMContext, pg_con: Postgres
     image = make_plot_points([keys] + values, f"Points table")
 
     await message.bot.send_photo(message.chat.id, image, caption="Here are results")
-    logging.info(f"Image of points for {user_data['asking_user_id']} sent successfully")
+    logger.info(f"Image of points for {user_data['asking_user_id']} sent successfully")
 
 
 def register_handlers_check_leaders(dp: Dispatcher, pg_con: PostgresConnection):

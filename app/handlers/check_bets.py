@@ -1,10 +1,9 @@
-import logging
 from aiogram import Dispatcher, types
 from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters.state import State, StatesGroup
 
 from ..dbworker import PostgresConnection
-from ..utilities import make_plot_two_teams, generate_stage_keyboard
+from ..utilities import make_plot_two_teams, generate_stage_keyboard, logger
 
 
 class OrderCheckBets(StatesGroup):
@@ -155,7 +154,7 @@ async def send_image(call: types.CallbackQuery, state: FSMContext, pg_con: Postg
     image = make_plot_two_teams([keys] + values, f"Bets of {user_data['user_nickname']} for {stage}")
 
     await call.message.bot.send_photo(call.message.chat.id, image, caption="Here are results")
-    logging.info(f"Image of bets for {user_data['user_nickname']} sent successfully")
+    logger.info(f"Image of bets for {user_data['user_nickname']} sent successfully")
 
 
 def register_handlers_check_bet(dp: Dispatcher, pg_con: PostgresConnection):

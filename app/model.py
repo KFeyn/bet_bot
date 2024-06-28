@@ -1,7 +1,7 @@
 from __future__ import annotations
 import dataclasses
 from app.dbworker import PostgresConnection
-import logging
+from app.utilities import logger
 
 
 @dataclasses.dataclass
@@ -34,4 +34,4 @@ class User:
         else:
             await pg_con.insert_data('bets.users', ['id', 'first_name', 'last_name', 'nickname'],
                                      [(self.id, self.first_name, self.last_name, self.nickname)])
-            logging.info(f'User {self.nickname} created')
+            logger.info(f'User {self.nickname} created')

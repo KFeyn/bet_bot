@@ -1,6 +1,6 @@
 import typing as tp
 import asyncpg
-import logging
+from app.utilities import logger
 
 
 class PostgresConnection:
@@ -36,7 +36,7 @@ class PostgresConnection:
                 """
                 await conn.execute(insert_stmt)
         except Exception as e:
-            logging.error(f"Error inserting data: {e}")
+            logger.error(f"Error inserting data: {e}")
             raise
         finally:
             await conn.close()

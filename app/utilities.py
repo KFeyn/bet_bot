@@ -3,8 +3,16 @@ import matplotlib
 import typing as tp
 import io
 from aiogram import types
+import logging
+
 
 matplotlib.use('Agg')
+
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
+formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(name)s - %(message)s')
+for handler in logger.handlers:
+    handler.setFormatter(formatter)
 
 
 def get_color(row) -> tp.Tuple[str, str]:

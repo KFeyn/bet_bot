@@ -1,9 +1,9 @@
-import logging
 from aiogram import Dispatcher, types
 from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters.state import State, StatesGroup
 
 from ..dbworker import PostgresConnection
+from ..utilities import logger
 
 
 class OrderPlaceBets(StatesGroup):
@@ -193,7 +193,7 @@ async def save_bet(call: types.CallbackQuery, state: FSMContext, pg_con: Postgre
                                user_data['group_id'], user_data['competition_id'])])
 
     await call.message.answer("Your bet has been placed successfully!", reply_markup=types.ReplyKeyboardRemove())
-    logging.info(f'Bet for match {user_data["match_id"]} for user {user_data["user_id"]} is written successfully')
+    logger.info(f'Bet for match {user_data["match_id"]} for user {user_data["user_id"]} is written successfully')
     await state.finish()
 
 

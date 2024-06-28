@@ -1,10 +1,10 @@
-import logging
 from aiogram import Dispatcher, types
 from aiogram.dispatcher import FSMContext
 from aiogram.types.message import ContentType
 
 from ..model import User
 from ..dbworker import PostgresConnection
+from ..utilities import logger
 
 
 async def starting_message(message: types.Message, state: FSMContext, pg_con: PostgresConnection):
@@ -21,7 +21,7 @@ async def starting_message(message: types.Message, state: FSMContext, pg_con: Po
                          message.from_user.username))
     await user.check_existing(pg_con)
 
-    logging.info(f'User {message.from_user.first_name} {message.from_user.last_name} logged in')
+    logger.info(f'User {message.from_user.first_name} {message.from_user.last_name} logged in')
 
     await message.answer("Hi! It's betting bot. Please check /help to know about existing commands",
                          parse_mode=types.ParseMode.HTML)
@@ -42,7 +42,7 @@ async def wrong_command_message(message: types.Message):
     :param message: message
     """
 
-    logging.info(f'User {message.from_user.first_name} {message.from_user.last_name} wrote {message.text}')
+    logger.info(f'User {message.from_user.first_name} {message.from_user.last_name} wrote {message.text}')
 
     await message.answer("Wrong command")
 
