@@ -147,7 +147,8 @@ async def match_picked(call: types.CallbackQuery, state: FSMContext):
     await call.message.bot.delete_message(call.message.chat.id, user_data['previous_message_id'])
     match_id, pair, user_id = call.data.split('_')[1], call.data.split('_')[2], call.data.split('_')[3]
     await state.update_data(match_id=match_id, pair=pair, user_id=user_id)
-    msg = await call.message.answer("Please enter the goals for the first team:",
+    first_team_name = pair.split('-')[0].strip()
+    msg = await call.message.answer(f"Please enter the goals for the {first_team_name}:",
                                     reply_markup=generate_number_keyboard())
     await state.update_data(previous_message_id=msg.message_id)
     await OrderPlaceBets.waiting_for_first_team_goals.set()
@@ -158,7 +159,8 @@ async def first_team_goals_entered(call: types.CallbackQuery, state: FSMContext)
     user_data = await state.get_data()
     await call.message.bot.delete_message(call.message.chat.id, user_data['previous_message_id'])
     await state.update_data(first_team_goals=first_team_goals)
-    msg = await call.message.answer("Please enter the goals for the second team:",
+    second_team_name = user_data['pair'].split('-')[1].strip()
+    msg = await call.message.answer(f"Please enter the goals for the {second_team_name}:",
                                     reply_markup=generate_number_keyboard())
     await state.update_data(previous_message_id=msg.message_id)
     await OrderPlaceBets.waiting_for_second_team_goals.set()
