@@ -48,7 +48,7 @@ def send_to_channel(message: str, chat_id: str, user_name: str) -> None:
         logger.error(f'Failed to send message for {user_name}: {response.status_code} - {response.text}')
 
 
-def get_data_from_db():
+def get_data_from_db(query: str) -> tp.List:
     try:
 
         connection = psycopg2.connect(
@@ -60,8 +60,21 @@ def get_data_from_db():
         )
 
         cursor = connection.cursor()
+        cursor.execute(query)
+        records = cursor.fetchall()
 
-        query = """
+        cursor.close()
+        connection.close()
+
+        return records
+
+    except Exception as e:
+        logger.error(f"Error fetching data from database: {e}")
+        return []
+
+
+def main():
+    query = """
         select 
             usr.first_name 
             ,usr.id as user_id
@@ -90,22 +103,8 @@ def get_data_from_db():
             not exists (select 1 from bets.bets as bts where bts.user_id = usr.id and bts.competition_id = cmpt.id and bts.group_id = grps.id and bts.match_id = mtch.id)
             and dt - now() < interval '12 hours'
         order by usr.first_name, mtch.dt
-        """
-        cursor.execute(query)
-        records = cursor.fetchall()
-
-        cursor.close()
-        connection.close()
-
-        return records
-
-    except Exception as e:
-        logger.error(f"Error fetching data from database: {e}")
-        return []
-
-
-def main():
-    records = get_data_from_db()
+    """
+    records = get_data_from_db(query)
 
     users_matches = make_dict(records)
 

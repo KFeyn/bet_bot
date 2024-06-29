@@ -96,6 +96,7 @@ async def start_picking_match(message: types.Message, state: FSMContext, pg_con:
                 ,id
                 ,{message.from_user.id} as user_id
                 ,dt::timestamp - interval '3 hours' as dt_in_utc_0
+                ,'' as existing_bet
         from 
                 bets.matches 
         where
@@ -107,11 +108,20 @@ async def start_picking_match(message: types.Message, state: FSMContext, pg_con:
         """
     else:
         query_get = f"""
-        select distinct
+        with pre_final as 
+        (
+        select 
                 mtchs.first_team || ' - ' || mtchs.second_team as pair
                 ,betting.match_id as id
                 ,{message.from_user.id} as user_id
                 ,mtchs.dt::timestamp - interval '3 hours' as dt_in_utc_0
+                ,betting.first_team_goals || ':' || betting.second_team_goals || 
+                    case 
+                        when betting.penalty_winner = 0 then '' 
+                        else ', ' || betting.penalty_winner || ' team wins penalty'
+                    end
+                as existing_bet
+                ,row_number() over (partition by betting.match_id order by betting.insert_date desc) as rn
         from 
                 bets.bets as betting
         join 
@@ -122,7 +132,18 @@ async def start_picking_match(message: types.Message, state: FSMContext, pg_con:
                 and mtchs.dt - now() > interval '1 hours'
                 and betting.competition_id = {user_data['competition_id']}
                 and betting.group_id = {user_data['group_id']}
-        order by mtchs.dt::timestamp - interval '3 hours'
+        )
+        select 
+                pair
+                ,id
+                ,user_id
+                ,dt_in_utc_0
+                ,existing_bet
+        from
+                pre_final
+        where 
+                rn = 1
+        order by dt_in_utc_0
         """
 
     teams = await pg_con.get_data(query_get)
@@ -136,7 +157,8 @@ async def start_picking_match(message: types.Message, state: FSMContext, pg_con:
     for team in teams:
         callback_data = f"match_{team['id']}_{team['pair']}_{team['user_id']}"
         keyboard.add(types.InlineKeyboardButton(text=team['pair'], callback_data=callback_data))
-        text_for_message += f"{team['pair']}: {team['dt_in_utc_0']} UTC+0\n"
+
+        text_for_message += f"{team['pair']} ({team['existing_bet']}): {team['dt_in_utc_0']} UTC+0\n"
     msg = await message.answer(text_for_message, reply_markup=keyboard)
     await state.update_data(previous_message_id=msg.message_id)
     await OrderPlaceBets.waiting_for_match_picking.set()

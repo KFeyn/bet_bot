@@ -81,7 +81,6 @@ def make_plot_points(table_data: tp.List[tp.List], name: str) -> io.BytesIO:
 
 def generate_stage_keyboard() -> types.InlineKeyboardMarkup:
     keyboard = types.InlineKeyboardMarkup()
-    keyboard.add(types.InlineKeyboardButton(text='group stage', callback_data='stage_group stage'))
     keyboard.add(types.InlineKeyboardButton(text='1/8 final', callback_data='stage_1/8 final'))
     keyboard.add(types.InlineKeyboardButton(text='1/4 final', callback_data='stage_1/4 final'))
     keyboard.add(types.InlineKeyboardButton(text='1/2 final', callback_data='stage_1/2 final'))
