@@ -11,7 +11,7 @@ for handler in logger.handlers:
     handler.setFormatter(formatter)
 
 
-def make_dict(records: tp.Tuple) -> tp.Dict:
+def make_dict(records: tp.List) -> tp.Dict:
     users_matches = dict()
     for record in records:
         first_name, user_id, pair, group_name, competition_name, dt = record
@@ -100,7 +100,8 @@ def main():
             bets.matches as mtch
                 on mtch.competition_id = cmpt.id
         where 
-            not exists (select 1 from bets.bets as bts where bts.user_id = usr.id and bts.competition_id = cmpt.id and bts.group_id = grps.id and bts.match_id = mtch.id)
+            not exists (select 1 from bets.bets as bts where bts.user_id = usr.id and bts.competition_id = cmpt.id and 
+            bts.group_id = grps.id and bts.match_id = mtch.id)
             and dt - now() < interval '12 hours'
         order by usr.first_name, mtch.dt
     """
