@@ -67,6 +67,7 @@ async def send_image(call: types.CallbackQuery, state: FSMContext, pg_con: Postg
     where 
             stage = '{stage}'
             and competition_id = {user_data['competition_id']}
+    order by 6
     """
 
     matches = await pg_con.get_data(query_get)

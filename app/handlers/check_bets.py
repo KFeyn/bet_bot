@@ -8,8 +8,8 @@ from ..utilities import make_plot_two_teams, generate_stage_keyboard, logger
 
 class OrderCheckBets(StatesGroup):
     waiting_for_comp_and_group_picking = State()
-    waiting_for_user_picking = State()
     waiting_for_stage_picking = State()
+    waiting_for_match_picking = State()
 
 
 async def start_check_process(message: types.Message, state: FSMContext, pg_con: PostgresConnection):
@@ -53,66 +53,68 @@ async def start_check_process(message: types.Message, state: FSMContext, pg_con:
     else:
         await state.update_data(competition_id=comps[0]['competition_id'], group_id=comps[0]['group_id'],
                                 asking_user_id=str(message.from_user.id))
-        await start_picking_user(message, state, pg_con)
+
+        msg = await message.answer("Please enter the stage:", reply_markup=generate_stage_keyboard())
+        await state.update_data(previous_message_id=msg.message_id)
+        await OrderCheckBets.waiting_for_stage_picking.set()
 
 
-async def competition_picked(call: types.CallbackQuery, state: FSMContext, pg_con: PostgresConnection):
+async def competition_picked(call: types.CallbackQuery, state: FSMContext):
     competition_id, group_id = call.data.split('_')[1], call.data.split('_')[2]
     user_data = await state.get_data()
     await call.message.bot.delete_message(call.message.chat.id, user_data['previous_message_id'])
     await state.update_data(competition_id=competition_id, group_id=group_id)
-    await start_picking_user(call.message, state, pg_con)
-
-
-async def start_picking_user(message: types.Message, state: FSMContext, pg_con: PostgresConnection):
-    user_data = await state.get_data()
-    query_get = f"""
-    select 
-            users.id
-            ,case when id = {message.from_user.id} then 'Me' else users.first_name || ' ' || users.last_name || ' (' || 
-            users.nickname  || ')' end as nickname
-    from 
-            bets.users as users
-    where 
-            exists( select 1 from bets.bets as betting where
-            betting.competition_id = {user_data['competition_id']}
-            and betting.group_id = {user_data['group_id']}
-            and betting.user_id = users.id)
-    """
-
-    users = await pg_con.get_data(query_get)
-
-    if len(users) == 0:
-        await message.answer("There are no bets from this user!")
-        return
-
-    keyboard = types.InlineKeyboardMarkup()
-    for user in users:
-        keyboard.add(types.InlineKeyboardButton(text=user['nickname'], callback_data=f"user__{user['id']}__"
-                                                                                     f"{user['nickname']}"))
-    msg = await message.answer("Please choose a user:", reply_markup=keyboard)
-    await state.update_data(previous_message_id=msg.message_id)
-    await OrderCheckBets.waiting_for_user_picking.set()
-
-
-async def user_picked(call: types.CallbackQuery, state: FSMContext):
-    user_data = await state.get_data()
-    await call.message.bot.delete_message(call.message.chat.id, user_data['previous_message_id'])
-    user_id, user_nickname = call.data.split('__')[1], call.data.split('__')[2]
-    await state.update_data(user_id=user_id, user_nickname=user_nickname)
 
     msg = await call.message.answer("Please enter the stage:", reply_markup=generate_stage_keyboard())
     await state.update_data(previous_message_id=msg.message_id)
     await OrderCheckBets.waiting_for_stage_picking.set()
 
 
-async def send_image(call: types.CallbackQuery, state: FSMContext, pg_con: PostgresConnection):
+async def start_picking_match(call: types.CallbackQuery, state: FSMContext, pg_con: PostgresConnection):
     stage = call.data.split('_')[1]
+    await state.update_data(stage=stage)
     user_data = await state.get_data()
     await call.message.bot.delete_message(call.message.chat.id, user_data['previous_message_id'])
-    is_user_you = f"and betting.user_id = {user_data['asking_user_id']}" \
-        if user_data['user_id'] == user_data['asking_user_id'] \
-        else "and mtchs.dt < now()"
+    query_get = f"""
+    select 
+                first_team || ' - ' || second_team as pair
+                ,id
+        from 
+                bets.matches 
+        where
+                competition_id = {user_data['competition_id']}
+                and stage = '{stage}'
+                and dt < now()
+        order by dt
+    """
+
+    matches = await pg_con.get_data(query_get)
+
+    if len(matches) == 0:
+        await call.message.answer("There are no bets on this stage or match didn\'t started yet")
+        return
+
+    keyboard = types.InlineKeyboardMarkup()
+    for match in matches:
+        keyboard.add(types.InlineKeyboardButton(text=match['pair'], callback_data=f"match_{match['id']}_"
+                                                                                  f"{match['pair']}"))
+    msg = await call.message.answer("Please choose a match:", reply_markup=keyboard)
+    await state.update_data(previous_message_id=msg.message_id)
+    await OrderCheckBets.waiting_for_match_picking.set()
+
+
+async def match_picked(call: types.CallbackQuery, state: FSMContext, pg_con: PostgresConnection):
+    user_data = await state.get_data()
+    await call.message.bot.delete_message(call.message.chat.id, user_data['previous_message_id'])
+    match_id, pair = call.data.split('_')[1], call.data.split('_')[2]
+    await state.update_data(match_id=match_id, pair=pair)
+    await send_image(call, state, pg_con)
+
+
+async def send_image(call: types.CallbackQuery, state: FSMContext, pg_con: PostgresConnection):
+    match_id = call.data.split('_')[1]
+    user_data = await state.get_data()
+
     query_get = f"""
     with cte as (
         select 
@@ -121,19 +123,23 @@ async def send_image(call: types.CallbackQuery, state: FSMContext, pg_con: Postg
                 ,betting.first_team_goals
                 ,betting.second_team_goals
                 ,betting.penalty_winner
-                ,row_number() over (partition by betting.match_id order by betting.insert_date desc) as rn
+                ,case when usr.id = {user_data['asking_user_id']} then 'Me' else usr.first_name || ' ' || usr.last_name 
+                 end as name
+                ,row_number() over (partition by betting.user_id order by betting.insert_date desc) as rn
                 
         from 
                 bets.bets as betting
         join 
                 bets.matches as mtchs
                     on betting.match_id = mtchs.id
+        join 
+                bets.users as usr 
+                    on usr.id = betting.user_id
         where 
                 betting.competition_id = {user_data['competition_id']}
                 and betting.group_id = {user_data['group_id']}
-                and betting.user_id = {user_data['user_id']}
-                and mtchs.stage = '{stage}'
-                {is_user_you}
+                and mtchs.stage = '{user_data['stage']}'
+                and mtchs.id = '{match_id}'
         )
         select
                 first_team
@@ -141,24 +147,26 @@ async def send_image(call: types.CallbackQuery, state: FSMContext, pg_con: Postg
                 ,second_team_goals
                 ,second_team
                 ,penalty_winner
+                ,name
         from 
                 cte
         where 
                 rn = 1
+        order by 6
     """
 
     bets = await pg_con.get_data(query_get)
 
     if len(bets) == 0:
-        await call.message.answer('There are no bets from this user on this stage or match didn\'t started yet')
+        await call.message.answer('There are no bets on this stage or match didn\'t started yet')
         return
 
     keys = list(bets[0].keys())
     values = [list(bet.values()) for bet in bets]
-    image = make_plot_two_teams([keys] + values, f"Bets of {user_data['user_nickname']} for {stage}")
+    image = make_plot_two_teams([keys] + values, f"Bets for match {user_data['pair']}")
 
     await call.message.bot.send_photo(call.message.chat.id, image, caption="Here are results")
-    logger.info(f"Image of bets for {user_data['user_nickname']} sent successfully")
+    logger.info(f"Image of bets for {user_data['asking_user_id']} sent successfully")
 
 
 def register_handlers_check_bet(dp: Dispatcher, pg_con: PostgresConnection):
@@ -166,15 +174,18 @@ def register_handlers_check_bet(dp: Dispatcher, pg_con: PostgresConnection):
         await start_check_process(message, state, pg_con)
 
     async def competition_picked_wrapper(call: types.CallbackQuery, state: FSMContext):
-        await competition_picked(call, state, pg_con)
+        await competition_picked(call, state)
 
-    async def send_image_wrapper(call: types.CallbackQuery, state: FSMContext):
-        await send_image(call, state, pg_con)
+    async def start_picking_match_wrapper(call: types.CallbackQuery, state: FSMContext):
+        await start_picking_match(call, state, pg_con)
+
+    async def match_picked_wrapper(call: types.CallbackQuery, state: FSMContext):
+        await match_picked(call, state, pg_con)
 
     dp.register_message_handler(start_check_process_wrapper, commands="check_others_bets", state="*")
     dp.register_callback_query_handler(competition_picked_wrapper, lambda call: call.data.startswith('competition_'),
                                        state=OrderCheckBets.waiting_for_comp_and_group_picking)
-    dp.register_callback_query_handler(user_picked, lambda call: call.data.startswith('user__'),
-                                       state=OrderCheckBets.waiting_for_user_picking)
-    dp.register_callback_query_handler(send_image_wrapper, lambda call: call.data.startswith('stage_'),
+    dp.register_callback_query_handler(start_picking_match_wrapper, lambda call: call.data.startswith('stage_'),
                                        state=OrderCheckBets.waiting_for_stage_picking)
+    dp.register_callback_query_handler(match_picked_wrapper, lambda call: call.data.startswith('match_'),
+                                       state=OrderCheckBets.waiting_for_match_picking)

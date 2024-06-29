@@ -16,7 +16,7 @@ for handler in logger.handlers:
 
 
 def get_color(row) -> tp.Tuple[str, str]:
-    if not row[1] or not row[2]:
+    if row[1] is None or row[2] is None:
         return 'yellow', 'yellow'
     elif row[1] > row[2] or (row[1] == row[2] and row[4] == 1):
         return 'green', 'red'
