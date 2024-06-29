@@ -69,13 +69,8 @@ async def send_image(message: types.Message, state: FSMContext, pg_con: Postgres
             pnts.user_name 
             ,pnts.points
             ,pnts.money_
-            ,gic.money
     from 
             bets.points as pnts
-    join 
-            bets.groups_in_competitions as gic
-                    on gic.competition_id = pnts.competition_id
-                    and gic.group_id = pnts.group_id
     where 
             pnts.competition_id = {user_data['competition_id']}
             and pnts.group_id = {user_data['group_id']}
