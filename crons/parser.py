@@ -41,8 +41,10 @@ class Match:
                 self.penalty_winner = 2
             else:
                 self.penalty_winner = 0
-        else:
+        elif not self.first_team_goals:
             self.penalty_winner = None
+        else:
+            self.penalty_winner = 0
 
         original_date = datetime.fromisoformat(match_data['utcDate'].replace("Z", "+00:00"))
         original_date = original_date + timedelta(hours=3)
@@ -87,15 +89,25 @@ def process_data(data) -> tp.List[Match]:
     return matches
 
 
+def fetch_and_process_data(api_url: str, api_key: str) -> tp.List[Match]:
+    logger.info(f"Fetching data from API: {api_url}")
+    response = requests.get(api_url, headers={'X-Auth-Token': api_key})
+    if response.status_code == 200:
+        logger.info("Data fetched successfully from API")
+        data = response.json()
+        return process_data(data)
+    else:
+        logger.error("Failed to fetch data from API")
+        raise Exception("Failed to fetch data from API")
+
+
 class DatabaseHandler:
-    def __init__(self, dbname: str, user: str, password: str, host: str, port: int, api_url: str, api_key: str):
+    def __init__(self, dbname: str, user: str, password: str, host: str, port: int):
         self.dbname = dbname
         self.user = user
         self.password = password
         self.host = host
         self.port = port
-        self.api_url = api_url
-        self.api_key = api_key
         self.connection = None
 
     def connect(self):
@@ -117,16 +129,24 @@ class DatabaseHandler:
             self.connection = None
             logger.info("Database connection closed")
 
-    def fetch_and_process_data(self) -> tp.List[Match]:
-        logger.info(f"Fetching data from API: {self.api_url}")
-        response = requests.get(self.api_url, headers={'X-Auth-Token': self.api_key})
-        if response.status_code == 200:
-            logger.info("Data fetched successfully from API")
-            data = response.json()
-            return process_data(data)
-        else:
-            logger.error("Failed to fetch data from API")
-            raise Exception("Failed to fetch data from API")
+    def fetch_competitions_to_parse(self) -> tp.List[tp.Tuple[str, str]]:
+        try:
+            self.connect()
+            cursor = self.connection.cursor()
+            query = """
+                SELECT api_url, competition_code
+                FROM bets.competitions
+                WHERE need_to_parse = true
+            """
+            cursor.execute(query)
+            competitions = cursor.fetchall()
+            cursor.close()
+            return competitions
+        except Exception as e:
+            logger.error(f"Error fetching competitions: {e}")
+            return []
+        finally:
+            self.close_connection()
 
     def insert_or_update_matches(self, matches: tp.List[Match]):
         if not matches:
@@ -142,7 +162,7 @@ class DatabaseHandler:
             match_ids_str = ', '.join(map(str, match_ids))
             logger.info("Fetching existing matches from database")
             cursor.execute(
-                f"SELECT id, first_team_goals, second_team_goals, penalty_winner FROM bets.matches_2 WHERE id IN "
+                f"SELECT id, first_team_goals, second_team_goals, penalty_winner FROM bets.matches WHERE id IN "
                 f"({match_ids_str})")
             existing_matches = cursor.fetchall()
             existing_match_data = {row[0]: row for row in existing_matches}
@@ -164,7 +184,7 @@ class DatabaseHandler:
             if insert_data:
                 logger.info(f"Inserting {len(insert_data)} new matches into the database")
                 insert_query = """
-                    INSERT INTO bets.matches_2 
+                    INSERT INTO bets.matches 
                     (first_team, second_team, competition_id, dt, first_team_goals, second_team_goals, penalty_winner, 
                     stage)
                     VALUES %s
@@ -174,7 +194,7 @@ class DatabaseHandler:
             if update_data:
                 logger.info(f"Updating {len(update_data)} existing matches in the database")
                 update_query = """
-                    UPDATE bets.matches_2
+                    UPDATE bets.matches
                     SET first_team_goals = %s, second_team_goals = %s, penalty_winner = %s
                     WHERE id = %s
                 """
@@ -190,14 +210,20 @@ class DatabaseHandler:
             self.close_connection()
 
 
-db_handler = DatabaseHandler(dbname=os.environ.get('PG_db'),
-                             user=os.environ.get('PG_user'),
-                             password=os.environ.get('PG_password'),
-                             host=os.environ.get('PG_host'),
-                             port=6432,
-                             api_url='https://api.football-data.org/v4/competitions/EC/matches',
-                             api_key=os.environ.get('API_KEY')
-                             )
+def main():
+    db_handler = DatabaseHandler(dbname=os.environ.get('PG_db'),
+                                 user=os.environ.get('PG_user'),
+                                 password=os.environ.get('PG_password'),
+                                 host=os.environ.get('PG_host'),
+                                 port=6432
+                                 )
+    competitions = db_handler.fetch_competitions_to_parse()
+    api_key = os.environ.get('API_KEY')
 
-matches = db_handler.fetch_and_process_data()
-db_handler.insert_or_update_matches(matches)
+    for api_url, competition_code in competitions:
+        matches = fetch_and_process_data(api_url, api_key)
+        db_handler.insert_or_update_matches(matches)
+
+
+if __name__ == '__main__':
+    main()
