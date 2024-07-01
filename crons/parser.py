@@ -16,14 +16,10 @@ for handler in logger.handlers:
 
 def generate_id(value: str) -> int:
     md5_hash = hashlib.md5(value.encode()).hexdigest()
-
     first_16_chars = md5_hash[:16]
-
     integer_value = int(first_16_chars, 16)
-
     if integer_value >= 2 ** 63:
         integer_value -= 2 ** 64
-
     return integer_value
 
 
@@ -46,7 +42,7 @@ class Match:
             else:
                 self.penalty_winner = 0
         else:
-            self.penalty_winner = 0
+            self.penalty_winner = None
 
         original_date = datetime.fromisoformat(match_data['utcDate'].replace("Z", "+00:00"))
         original_date = original_date + timedelta(hours=3)
@@ -59,6 +55,36 @@ class Match:
             'FINAL': 'final'
         }
         self.stage = stage_map.get(match_data['stage'], None)
+
+
+def process_data(data) -> tp.List[Match]:
+    competition_code = data['competition']['code']
+    season = data['filters']['season']
+
+    last_day_str = data['resultSet']['last']
+    last_day = datetime.strptime(last_day_str, '%Y-%m-%d')
+
+    if datetime.now() > last_day + timedelta(days=1):
+        logger.info("Competition last day is more than one day ahead, no need to process")
+        return []
+
+    stage_map = {
+        'LAST_16': '1/8 final',
+        'QUARTER_FINALS': '1/4 final',
+        'SEMI_FINALS': '1/2 final',
+        'FINAL': 'final'
+    }
+
+    matches = []
+    for match_data in data['matches']:
+        stage = stage_map.get(match_data['stage'])
+        if stage:
+            match = Match(match_data, competition_code, season)
+            if match.first_team and match.second_team:
+                matches.append(match)
+
+    logger.info(f"Processed {len(matches)} matches")
+    return matches
 
 
 class DatabaseHandler:
@@ -97,40 +123,10 @@ class DatabaseHandler:
         if response.status_code == 200:
             logger.info("Data fetched successfully from API")
             data = response.json()
-            return self.process_data(data)
+            return process_data(data)
         else:
             logger.error("Failed to fetch data from API")
             raise Exception("Failed to fetch data from API")
-
-    def process_data(self, data) -> tp.List[Match]:
-        competition_code = data['competition']['code']
-        season = data['filters']['season']
-
-        last_day_str = data['resultSet']['last']
-        last_day = datetime.strptime(last_day_str, '%Y-%m-%d')
-
-        if datetime.now() > last_day + timedelta(days=1):
-            logger.info("Competition last day is more than one day ahead, no need to process")
-            return []
-
-        stage_map = {
-            'LAST_16': '1/8 final',
-            'QUARTER_FINALS': '1/4 final',
-            'SEMI_FINALS': '1/2 final',
-            'FINAL': 'final'
-        }
-
-        matches = []
-        for match_data in data['matches']:
-            stage = stage_map.get(match_data['stage'])
-            if stage:
-                match = Match(match_data, competition_code, season)
-                if (match.first_team and match.second_team and match.first_team_goals is not None and
-                        match.second_team_goals is not None and match.status == 'FINISHED'):
-                    matches.append(match)
-
-        logger.info(f"Processed {len(matches)} matches")
-        return matches
 
     def insert_or_update_matches(self, matches: tp.List[Match]):
         if not matches:
@@ -149,19 +145,22 @@ class DatabaseHandler:
                 f"SELECT id, first_team_goals, second_team_goals, penalty_winner FROM bets.matches_2 WHERE id IN "
                 f"({match_ids_str})")
             existing_matches = cursor.fetchall()
-            existing_match_ids = {row[0] for row in existing_matches}
+            existing_match_data = {row[0]: row for row in existing_matches}
+
             insert_data = []
             update_data = []
 
             for match in matches:
                 match_id = generate_id(f"{match.first_team}{match.second_team}{match.competition_id}{match.dt}")
-                if match_id not in existing_match_ids:
+
+                if match_id not in existing_match_data:
                     insert_data.append((match.first_team, match.second_team, match.competition_id, match.dt,
                                         match.first_team_goals, match.second_team_goals, match.penalty_winner,
                                         match.stage))
-                else:
-                    update_data.append(
-                        (match.first_team_goals, match.second_team_goals, match.penalty_winner, match_id))
+                elif not existing_match_data[match_id][1] and match.status == 'FINISHED':
+                    update_data.append((match.first_team_goals, match.second_team_goals, match.penalty_winner,
+                                        match_id))
+
             if insert_data:
                 logger.info(f"Inserting {len(insert_data)} new matches into the database")
                 insert_query = """
