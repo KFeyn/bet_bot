@@ -35,7 +35,7 @@ async def start_picking_competition(message: types.Message, state: FSMContext, p
             keyboard.add(types.InlineKeyboardButton(text=comp['name'],
                                                     callback_data=f"competition_{comp['id']}_{comp['name']}"))
         msg = await message.answer("Please choose a competition:", reply_markup=keyboard)
-        await state.update_data(previous_message_id=msg.message_id, asking_username=str(message.from_user.username))
+        await state.update_data(previous_message_id=msg.message_id, asking_user_id=str(message.from_user.id))
         await OrderCheckCompetitions.waiting_for_competition_picking.set()
 
 
@@ -81,7 +81,7 @@ async def send_image(call: types.CallbackQuery, state: FSMContext, pg_con: Postg
     image = make_plot_two_teams([keys] + values, f"Matches of {user_data['competition_name']} for {stage}")
 
     await call.message.bot.send_photo(call.message.chat.id, image, caption="Here are results")
-    logger.info(f"Image of bets for {user_data['asking_username']} sent successfully")
+    logger.info(f"Image of competition for {user_data['asking_user_id']} sent successfully")
 
 
 def register_handlers_check_competition(dp: Dispatcher, pg_con: PostgresConnection):

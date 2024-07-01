@@ -63,7 +63,12 @@ def make_plot_points(table_data: tp.List[tp.List], name: str) -> io.BytesIO:
     table.scale(1.2, 1.5)
 
     for i, row in enumerate(table_data[1:], start=1):
-        color = 'red' if row[2] < 0 else 'green'
+        if row[2] < 0:
+            color = 'red'
+        elif row[2] == 0:
+            color = 'yellow'
+        else:
+            color = 'green'
         table[(i, 0)].set_facecolor(color)
         table[(i, 1)].set_facecolor(color)
         table[(i, 2)].set_facecolor(color)
