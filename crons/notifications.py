@@ -39,7 +39,6 @@ def send_to_channel(message: str, chat_id: str, user_name: str) -> None:
         'parse_mode': 'HTML',
     }
     url = f'https://api.telegram.org/bot{bot_token}/sendMessage'
-    print(params)
     response = requests.post(url, data=params)
 
     if response.status_code == 200:
@@ -51,13 +50,8 @@ def send_to_channel(message: str, chat_id: str, user_name: str) -> None:
 def get_data_from_db(query: str) -> tp.List:
     try:
 
-        connection = psycopg2.connect(
-            dbname=os.environ.get('PG_db'),
-            user=os.environ.get('PG_user'),
-            password=os.environ.get('PG_password'),
-            host=os.environ.get('PG_host'),
-            port=6432
-        )
+        connection = psycopg2.connect(f"postgresql://{os.environ.get('PG_user')}:{os.environ.get('PG_password')}@"
+                                      f"{os.environ.get('PG_host')}:6432/{os.environ.get('PG_db')}")
 
         cursor = connection.cursor()
         cursor.execute(query)
@@ -102,7 +96,7 @@ def main():
         where 
             not exists (select 1 from bets.bets as bts where bts.user_id = usr.id and bts.competition_id = cmpt.id and 
             bts.group_id = grps.id and bts.match_id = mtch.id)
-            and dt - now() < interval '12 hours'
+            and dt - now() between interval '1 hours' and interval '3 hours'
         order by usr.first_name, mtch.dt
     """
     records = get_data_from_db(query)

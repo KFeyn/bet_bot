@@ -35,6 +35,8 @@ class Match:
 
         penalties = match_data['score'].get('penalties')
         if penalties:
+            self.first_team_goals = self.first_team_goals - penalties['home']
+            self.second_team_goals = self.second_team_goals - penalties['away']
             if penalties['home'] > penalties['away']:
                 self.penalty_winner = 1
             elif penalties['away'] > penalties['home']:
@@ -102,23 +104,17 @@ def fetch_and_process_data(api_url: str, api_key: str) -> tp.List[Match]:
 
 
 class DatabaseHandler:
-    def __init__(self, dbname: str, user: str, password: str, host: str, port: int):
+    def __init__(self, dbname: str, user: str, password: str, host: str):
         self.dbname = dbname
         self.user = user
         self.password = password
         self.host = host
-        self.port = port
         self.connection = None
 
     def connect(self):
         try:
-            self.connection = psycopg2.connect(
-                dbname=self.dbname,
-                user=self.user,
-                password=self.password,
-                host=self.host,
-                port=self.port
-            )
+            self.connection = psycopg2.connect(f'postgresql://{self.user}:{self.password}@{self.host}:'
+                                               f'6432/{self.dbname}')
             logger.info("Database connection established")
         except Exception as e:
             logger.error(f"Error connecting to database: {e}")
@@ -177,7 +173,7 @@ class DatabaseHandler:
                     insert_data.append((match.first_team, match.second_team, match.competition_id, match.dt,
                                         match.first_team_goals, match.second_team_goals, match.penalty_winner,
                                         match.stage))
-                elif not existing_match_data[match_id][1] and match.status == 'FINISHED':
+                elif existing_match_data[match_id][1] is None and match.status == 'FINISHED':
                     update_data.append((match.first_team_goals, match.second_team_goals, match.penalty_winner,
                                         match_id))
 
@@ -214,8 +210,7 @@ def main():
     db_handler = DatabaseHandler(dbname=os.environ.get('PG_db'),
                                  user=os.environ.get('PG_user'),
                                  password=os.environ.get('PG_password'),
-                                 host=os.environ.get('PG_host'),
-                                 port=6432
+                                 host=os.environ.get('PG_host')
                                  )
     competitions = db_handler.fetch_competitions_to_parse()
     api_key = os.environ.get('API_KEY')
