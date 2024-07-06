@@ -99,21 +99,29 @@ def pivot_table(data: tp.List[tp.List]) -> tp.List[tp.List]:
     # Step 3: Determine all unique pairs and sort them
     pairs = sorted(set(row[1] for row in data[1:]))
 
-    # Step 4: Create the result list in the desired format
-    result = [['pair'] + sorted(set(row[0] for row in data[1:]))]
+    # Step 4: Compute the overall points for each user
+    user_points = defaultdict(int)
+    for pair in pairs:
+        for user_name in pair_points[pair]:
+            user_points[user_name] += pair_points[pair][user_name]
+
+    # Step 5: Sort users by overall points in descending order
+    sorted_users = sorted(user_points.keys(), key=lambda user: user_points[user], reverse=True)
+
+    # Step 6: Create the result list in the desired format
+    result = [['pair'] + sorted_users]
 
     # Add rows for each pair
     for pair in pairs:
         row = [pair]
-        for user_name in result[0][1:]:
+        for user_name in sorted_users:
             row.append(pair_points[pair][user_name] if user_name in pair_points[pair] else None)
         result.append(row)
 
     # Add overall row
     overall_row = ['overall']
-    for user_name in result[0][1:]:
-        overall_points = sum(pair_points[pair][user_name] for pair in pairs if user_name in pair_points[pair])
-        overall_row.append(overall_points)
+    for user_name in sorted_users:
+        overall_row.append(user_points[user_name])
     result.append(overall_row)
 
     return result
