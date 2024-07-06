@@ -73,9 +73,11 @@ def process_data(data) -> tp.List[Match]:
         return []
 
     stage_map = {
+        'LAST_32': '1/16 final',
         'LAST_16': '1/8 final',
         'QUARTER_FINALS': '1/4 final',
         'SEMI_FINALS': '1/2 final',
+        'THIRD_PLACE': 'final',
         'FINAL': 'final'
     }
 
