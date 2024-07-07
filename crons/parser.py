@@ -53,9 +53,11 @@ class Match:
         self.dt = original_date.strftime("%Y-%m-%d %H:%M:%S%z").replace('0000', '03')
 
         stage_map = {
+            'LAST_32': '1/16 final',
             'LAST_16': '1/8 final',
             'QUARTER_FINALS': '1/4 final',
             'SEMI_FINALS': '1/2 final',
+            'THIRD_PLACE': 'final',
             'FINAL': 'final'
         }
         self.stage = stage_map.get(match_data['stage'], None)
