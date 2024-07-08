@@ -6,6 +6,7 @@ from aiogram import types
 import logging
 from collections import defaultdict
 import matplotlib.colors as mcolors
+import hashlib
 
 
 matplotlib.use('Agg')
@@ -15,6 +16,23 @@ logger.setLevel(logging.INFO)
 formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(name)s - %(message)s')
 for handler in logger.handlers:
     handler.setFormatter(formatter)
+
+
+def is_integer(s: str) -> bool:
+    try:
+        int(s)
+        return True
+    except ValueError:
+        return False
+
+
+def generate_id(value: str) -> int:
+    md5_hash = hashlib.md5(value.encode()).hexdigest()
+    first_16_chars = md5_hash[:16]
+    integer_value = int(first_16_chars, 16)
+    if integer_value >= 2 ** 63:
+        integer_value -= 2 ** 64
+    return integer_value
 
 
 def get_color(row) -> tp.Tuple[str, str]:
@@ -180,4 +198,12 @@ def generate_stats_keyboard() -> types.InlineKeyboardMarkup:
     keyboard = types.InlineKeyboardMarkup()
     keyboard.add(types.InlineKeyboardButton(text='simple', callback_data='stats_simple'))
     keyboard.add(types.InlineKeyboardButton(text='detailed', callback_data='stats_detailed'))
+    return keyboard
+
+
+def generate_competition_keyboard() -> types.InlineKeyboardMarkup:
+    keyboard = types.InlineKeyboardMarkup()
+    keyboard.add(types.InlineKeyboardButton(text='Champions League', callback_data='comps_CL'))
+    keyboard.add(types.InlineKeyboardButton(text='World Championship', callback_data='comps_WC'))
+    keyboard.add(types.InlineKeyboardButton(text='Europe Championship', callback_data='comps_Euro'))
     return keyboard

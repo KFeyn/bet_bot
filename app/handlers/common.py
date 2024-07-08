@@ -1,10 +1,12 @@
 from aiogram import Dispatcher, types
 from aiogram.dispatcher import FSMContext
 from aiogram.types.message import ContentType
+from aiogram.utils.deep_linking import decode_payload
+import binascii
 
-from ..model import User
+from ..model import User, UserInGroup
 from ..dbworker import PostgresConnection
-from ..utilities import logger
+from ..utilities import logger, generate_id
 
 
 async def starting_message(message: types.Message, state: FSMContext, pg_con: PostgresConnection):
@@ -23,7 +25,30 @@ async def starting_message(message: types.Message, state: FSMContext, pg_con: Po
 
     logger.info(f'User {message.from_user.first_name} {message.from_user.last_name} logged in')
 
-    await message.answer("Hi! It's betting bot. Please check /help to know about existing commands",
+    try:
+        args = message.get_args()
+        reference = decode_payload(args)
+    except binascii.Error:
+        await message.answer('Wrong link!')
+        return
+
+    if reference:
+        try:
+            addded_by = int(reference.split('_')[1])
+            group_name = reference.split('_')[0]
+        except (IndexError, ValueError):
+            await message.answer('Wrong link!')
+            return
+
+        uig = UserInGroup.from_message((message.from_user.id, generate_id(group_name), addded_by))
+
+        if await uig.check_existing_group(pg_con):
+            await uig.check_existing(pg_con)
+        else:
+            await message.answer('There is no such group, your link is deprecated!')
+            return
+
+    await message.answer(f"Hi! It's betting bot. Please check /help to know about existing commands",
                          parse_mode=types.ParseMode.HTML)
 
 

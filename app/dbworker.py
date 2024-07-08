@@ -40,3 +40,24 @@ class PostgresConnection:
             raise
         finally:
             await conn.close()
+
+    async def delete_data(self, table_name: str, condition: str):
+        """
+        Deletes rows from the specified table based on a condition.
+
+        :param table_name: The name of the table from which to delete data.
+        :param condition: The condition to filter rows to be deleted (e.g., "id = 1").
+        """
+        conn = await asyncpg.connect(self.conn_string)
+        try:
+            async with conn.transaction():
+                delete_stmt = f"""
+                    DELETE FROM {table_name}
+                    WHERE {condition}
+                """
+                await conn.execute(delete_stmt)
+        except Exception as e:
+            logger.error(f"Error deleting data: {e}")
+            raise
+        finally:
+            await conn.close()
