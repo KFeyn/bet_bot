@@ -19,11 +19,11 @@ async def starting_message(message: types.Message, state: FSMContext, pg_con: Po
     """
     await state.finish()
 
-    user = User.from_id((message.from_user.id, message.from_user.first_name, message.from_user.last_name,
-                         message.from_user.username))
+    user = User.from_id((message.chat.id, message.chat.first_name, message.chat.last_name,
+                         message.chat.username))
     await user.check_existing(pg_con)
 
-    logger.info(f'User {message.from_user.first_name} {message.from_user.last_name} logged in')
+    logger.info(f'User {message.chat.first_name} {message.chat.last_name} logged in')
 
     try:
         args = message.get_args()
@@ -40,7 +40,7 @@ async def starting_message(message: types.Message, state: FSMContext, pg_con: Po
             await message.answer('Wrong link!')
             return
 
-        uig = UserInGroup.from_message((message.from_user.id, generate_id(group_name), addded_by))
+        uig = UserInGroup.from_message((message.chat.id, generate_id(group_name), addded_by))
 
         if await uig.check_existing_group(pg_con):
             await uig.check_existing(pg_con)
@@ -48,7 +48,7 @@ async def starting_message(message: types.Message, state: FSMContext, pg_con: Po
             await message.answer('There is no such group, your link is deprecated!')
             return
 
-    await message.answer(f"Hi! It's betting bot. Please check /help to know about existing commands",
+    await message.answer(f"Hi! It's betting bot. Please check /help to check the rules",
                          parse_mode=types.ParseMode.HTML)
 
 
@@ -67,7 +67,7 @@ async def wrong_command_message(message: types.Message):
     :param message: message
     """
 
-    logger.info(f'User {message.from_user.first_name} {message.from_user.last_name} wrote {message.text}')
+    logger.info(f'User {message.chat.first_name} {message.chat.last_name} wrote {message.text}')
 
     await message.answer("Wrong command")
 

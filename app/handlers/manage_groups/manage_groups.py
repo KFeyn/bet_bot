@@ -1,6 +1,5 @@
 from aiogram import Dispatcher, types
 from aiogram.dispatcher import FSMContext
-from aiogram.dispatcher.filters.state import State, StatesGroup
 
 from app.dbworker import PostgresConnection
 from app.handlers.manage_groups.create_groups import register_handlers_create_groups, choose_competition

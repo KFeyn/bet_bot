@@ -49,7 +49,7 @@ async def start_bet_process(message: types.Message, state: FSMContext, pg_con: P
                     on comp.id = gic.competition_id
                     and comp.end_date - now() > interval '1 hours'
     where 
-            uig.user_id = {message.from_user.id}
+            uig.user_id = {message.chat.id}
     """
     comps = await pg_con.get_data(query_get)
 
@@ -94,14 +94,14 @@ async def start_picking_match(message: types.Message, state: FSMContext, pg_con:
         select 
                 first_team || ' - ' || second_team as pair
                 ,id
-                ,{message.from_user.id} as user_id
+                ,{message.chat.id} as user_id
                 ,dt::timestamp - interval '3 hours' as dt_in_utc_0
                 ,'' as existing_bet
         from 
                 bets.matches 
         where
                 not exists (select 1 from bets.bets where bets.matches.id = bets.bets.match_id
-                and bets.bets.user_id = {message.from_user.id})
+                and bets.bets.user_id = {message.chat.id})
                 and competition_id = {user_data['competition_id']}
                 and dt - now() > interval '1 hours'
         order by dt
@@ -113,7 +113,7 @@ async def start_picking_match(message: types.Message, state: FSMContext, pg_con:
         select 
                 mtchs.first_team || ' - ' || mtchs.second_team as pair
                 ,betting.match_id as id
-                ,{message.from_user.id} as user_id
+                ,{message.chat.id} as user_id
                 ,mtchs.dt::timestamp - interval '3 hours' as dt_in_utc_0
                 ,betting.first_team_goals || ':' || betting.second_team_goals || 
                     case 
@@ -128,7 +128,7 @@ async def start_picking_match(message: types.Message, state: FSMContext, pg_con:
                 bets.matches as mtchs
                     on betting.match_id = mtchs.id
         where
-                betting.user_id = {message.from_user.id}
+                betting.user_id = {message.chat.id}
                 and mtchs.dt - now() > interval '1 hours'
                 and betting.competition_id = {user_data['competition_id']}
                 and betting.group_id = {user_data['group_id']}

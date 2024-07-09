@@ -33,7 +33,7 @@ async def start_check_process(message: types.Message, state: FSMContext, pg_con:
                     on comp.id = gic.competition_id
                     and now() - comp.end_date < interval '168 hours'
     where 
-            uig.user_id = {message.from_user.id}
+            uig.user_id = {message.chat.id}
     """
     comps = await pg_con.get_data(query_get)
 
@@ -48,11 +48,11 @@ async def start_check_process(message: types.Message, state: FSMContext, pg_con:
                                                     callback_data=f"competition_{comp['competition_id']}_"
                                                                   f"{comp['group_id']}"))
         msg = await message.answer("Please choose a competition and group pair:", reply_markup=keyboard)
-        await state.update_data(previous_message_id=msg.message_id, asking_user_id=str(message.from_user.id))
+        await state.update_data(previous_message_id=msg.message_id, asking_user_id=str(message.chat.id))
         await OrderCheckBets.waiting_for_comp_and_group_picking.set()
     else:
         await state.update_data(competition_id=comps[0]['competition_id'], group_id=comps[0]['group_id'],
-                                asking_user_id=str(message.from_user.id))
+                                asking_user_id=str(message.chat.id))
 
         msg = await message.answer("Please enter the stage:", reply_markup=generate_stage_keyboard())
         await state.update_data(previous_message_id=msg.message_id)

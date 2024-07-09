@@ -15,13 +15,20 @@ async def start_picking_competition(message: types.Message, state: FSMContext, p
     await state.finish()
 
     query_get = f"""
-    select 
-            name
-            ,id 
+    select distinct
+            cmp.name
+            ,cmp.id 
     from 
-            bets.competitions
+            bets.competitions as cmp
+    join
+            bets.groups_in_competitions as gic
+                on gic.competition_id = cmp.id
+    join
+            bets.users_in_groups as uig
+                on uig.group_id = gic.group_id
     where 
             now() - end_date < interval '168 hours'
+            and uig.user_id = {message.chat.id}
     """
     comps = await pg_con.get_data(query_get)
 
@@ -35,7 +42,7 @@ async def start_picking_competition(message: types.Message, state: FSMContext, p
             keyboard.add(types.InlineKeyboardButton(text=comp['name'],
                                                     callback_data=f"competition_{comp['id']}_{comp['name']}"))
         msg = await message.answer("Please choose a competition:", reply_markup=keyboard)
-        await state.update_data(previous_message_id=msg.message_id, asking_user_id=str(message.from_user.id))
+        await state.update_data(previous_message_id=msg.message_id, asking_user_id=str(message.chat.id))
         await OrderCheckCompetitions.waiting_for_competition_picking.set()
 
 
