@@ -146,8 +146,8 @@ async def start_picking_match(message: Message, state: FSMContext, pg_con: Postg
     for team in teams:
         callback_data = f"match_{team['id']}_{team['pair']}_{team['user_id']}"
         keyboard_buttons.append([InlineKeyboardButton(text=team['pair'], callback_data=callback_data)])
-        existing_part = '' if new_bet else f" ({team['existing_bet']})"
-        text_for_message += f"{team['pair']}{existing_part}: {team['dt_in_utc_0']} UTC+0\n"
+        existing_part = '' if new_bet else f" ⚽{team['existing_bet']}"
+        text_for_message += f"🏟{team['pair']}{existing_part} ⏱️{team['dt_in_utc_0']} UTC+0\n"
     keyboard = InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
 
     msg = await message.answer(text_for_message, reply_markup=keyboard)
