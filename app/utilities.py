@@ -8,7 +8,6 @@ from collections import defaultdict
 import matplotlib.colors as mcolors
 import hashlib
 
-
 matplotlib.use('Agg')
 
 logger = logging.getLogger()
@@ -46,7 +45,7 @@ def get_color(row) -> tp.Tuple[str, str]:
         return 'yellow', 'yellow'
 
 
-def make_plot_two_teams(table_data: tp.List[tp.List], name: str) -> io.BytesIO:
+def make_plot_two_teams(table_data: tp.List[tp.List], name: str) -> types.BufferedInputFile:
     fig, ax = plt.subplots(figsize=(12, 6), dpi=200)
     ax.axis('off')
 
@@ -68,10 +67,10 @@ def make_plot_two_teams(table_data: tp.List[tp.List], name: str) -> io.BytesIO:
 
     plt.close(fig)
 
-    return buf
+    return types.BufferedInputFile(buf.read(), 'file.png')
 
 
-def make_plot_points(table_data: tp.List[tp.List], name: str) -> io.BytesIO:
+def make_plot_points(table_data: tp.List[tp.List], name: str) -> types.BufferedInputFile:
     fig, ax = plt.subplots(figsize=(10, 6), dpi=200)
     ax.axis('off')
 
@@ -101,11 +100,10 @@ def make_plot_points(table_data: tp.List[tp.List], name: str) -> io.BytesIO:
 
     plt.close(fig)
 
-    return buf
+    return types.BufferedInputFile(buf.read(), 'file.png')
 
 
 def pivot_table(data: tp.List[tp.List]) -> tp.List[tp.List]:
-
     # Step 1: Initialize defaultdicts for storing points
     pair_points = defaultdict(lambda: defaultdict(int))
 
@@ -145,8 +143,7 @@ def pivot_table(data: tp.List[tp.List]) -> tp.List[tp.List]:
     return result
 
 
-def make_plot_points_detailed(table_data: tp.List[tp.List], name: str) -> io.BytesIO:
-
+def make_plot_points_detailed(table_data: tp.List[tp.List], name: str) -> types.BufferedInputFile:
     def check_none(value: tp.Optional[float]) -> float:
         if value is None:
             return 0
@@ -181,29 +178,54 @@ def make_plot_points_detailed(table_data: tp.List[tp.List], name: str) -> io.Byt
     buf.seek(0)
 
     plt.close(fig)
-    return buf
+    return types.BufferedInputFile(buf.read(), 'file.png')
 
 
 def generate_stage_keyboard() -> types.InlineKeyboardMarkup:
-    keyboard = types.InlineKeyboardMarkup()
-    keyboard.add(types.InlineKeyboardButton(text='1/16 final', callback_data='stage_1/16 final'))
-    keyboard.add(types.InlineKeyboardButton(text='1/8 final', callback_data='stage_1/8 final'))
-    keyboard.add(types.InlineKeyboardButton(text='1/4 final', callback_data='stage_1/4 final'))
-    keyboard.add(types.InlineKeyboardButton(text='1/2 final', callback_data='stage_1/2 final'))
-    keyboard.add(types.InlineKeyboardButton(text='final', callback_data='stage_final'))
+    keyboard_buttons = [[types.InlineKeyboardButton(text='1/16 final', callback_data='stage_1/16 final')],
+                        [types.InlineKeyboardButton(text='1/8 final', callback_data='stage_1/8 final')],
+                        [types.InlineKeyboardButton(text='1/4 final', callback_data='stage_1/4 final')],
+                        [types.InlineKeyboardButton(text='1/2 final', callback_data='stage_1/2 final')],
+                        [types.InlineKeyboardButton(text='final', callback_data='stage_final')]]
+
+    keyboard = types.InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
     return keyboard
 
 
 def generate_stats_keyboard() -> types.InlineKeyboardMarkup:
-    keyboard = types.InlineKeyboardMarkup()
-    keyboard.add(types.InlineKeyboardButton(text='simple', callback_data='stats_simple'))
-    keyboard.add(types.InlineKeyboardButton(text='detailed', callback_data='stats_detailed'))
+    keyboard_buttons = [[types.InlineKeyboardButton(text='simple', callback_data='stats_simple')],
+                        [types.InlineKeyboardButton(text='detailed', callback_data='stats_detailed')]]
+    keyboard = types.InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
     return keyboard
 
 
 def generate_competition_keyboard() -> types.InlineKeyboardMarkup:
-    keyboard = types.InlineKeyboardMarkup()
-    keyboard.add(types.InlineKeyboardButton(text='Champions League', callback_data='comps_CL'))
-    keyboard.add(types.InlineKeyboardButton(text='World Championship', callback_data='comps_WC'))
-    keyboard.add(types.InlineKeyboardButton(text='Europe Championship', callback_data='comps_Euro'))
+    keyboard_buttons = [[types.InlineKeyboardButton(text='Champions League', callback_data='comps_CL')],
+                        [types.InlineKeyboardButton(text='World Championship', callback_data='comps_WC')],
+                        [types.InlineKeyboardButton(text='Europe Championship', callback_data='comps_Euro')]]
+    keyboard = types.InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
+    return keyboard
+
+
+def generate_number_keyboard() -> types.InlineKeyboardMarkup:
+    keyboard_buttons = []
+    for i in range(11):
+        keyboard_buttons.append([types.InlineKeyboardButton(text=str(i), callback_data=f'goals_{i}')])
+    keyboard = types.InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
+    return keyboard
+
+
+def generate_teams_keyboard(first_team_name: str, second_team_name: str) -> types.InlineKeyboardMarkup:
+    keyboard_buttons = [[types.InlineKeyboardButton(text=first_team_name, callback_data='penalty_1')],
+                        [types.InlineKeyboardButton(text=second_team_name, callback_data='penalty_2')]]
+    keyboard = types.InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
+    return keyboard
+
+
+def generate_manage_groups_keyboard() -> types.InlineKeyboardMarkup:
+    keyboard_buttons = [[types.InlineKeyboardButton(text="Create Group", callback_data="manage_creategroup")],
+                        [types.InlineKeyboardButton(text="Delete Group", callback_data="manage_deletegroup")],
+                        [types.InlineKeyboardButton(text="Delete User from Group",
+                                                    callback_data="manage_deleteuserfromgroup")]]
+    keyboard = types.InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
     return keyboard

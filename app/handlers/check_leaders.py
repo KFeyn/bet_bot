@@ -1,9 +1,11 @@
-from aiogram import Dispatcher, types
-from aiogram.dispatcher import FSMContext
-from aiogram.dispatcher.filters.state import State, StatesGroup
+from aiogram import Router, F
+from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.fsm.context import FSMContext
+from aiogram.fsm.state import State, StatesGroup
+from aiogram.filters import Command, StateFilter
 
-from ..dbworker import PostgresConnection
-from ..utilities import make_plot_points, logger, generate_stats_keyboard, make_plot_points_detailed
+from app.dbworker import PostgresConnection
+from app.utilities import make_plot_points, logger, generate_stats_keyboard, make_plot_points_detailed
 
 
 class OrderCheckLeaders(StatesGroup):
@@ -11,8 +13,8 @@ class OrderCheckLeaders(StatesGroup):
     waiting_for_type_picking = State()
 
 
-async def start_check_process(message: types.Message, state: FSMContext, pg_con: PostgresConnection):
-    await state.finish()
+async def start_check_process(message: Message, state: FSMContext, pg_con: PostgresConnection):
+    await state.clear()
 
     query_get = f"""
     select 
@@ -41,24 +43,25 @@ async def start_check_process(message: types.Message, state: FSMContext, pg_con:
         return
 
     elif len(comps) > 1:
-        keyboard = types.InlineKeyboardMarkup()
+        keyboard_buttons = []
         for comp in comps:
-            keyboard.add(types.InlineKeyboardButton(text=comp['c_g_pair'],
-                                                    callback_data=f"competition_{comp['competition_id']}_"
-                                                                  f"{comp['group_id']}"))
+            keyboard_buttons.append([InlineKeyboardButton(text=comp['c_g_pair'],
+                                                          callback_data=f"competition_{comp['competition_id']}_"
+                                                                        f"{comp['group_id']}")])
+        keyboard = InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
         msg = await message.answer("Please choose a competition and group pair:", reply_markup=keyboard)
         await state.update_data(previous_message_id=msg.message_id, asking_user_id=str(message.chat.id))
-        await OrderCheckLeaders.waiting_for_comp_and_group_picking.set()
+        await state.set_state(OrderCheckLeaders.waiting_for_comp_and_group_picking)
     else:
         await state.update_data(competition_id=comps[0]['competition_id'], group_id=comps[0]['group_id'],
                                 asking_user_id=str(message.chat.id))
 
         msg = await message.answer("Please enter type of info:", reply_markup=generate_stats_keyboard())
         await state.update_data(previous_message_id=msg.message_id)
-        await OrderCheckLeaders.waiting_for_type_picking.set()
+        await state.set_state(OrderCheckLeaders.waiting_for_type_picking)
 
 
-async def competition_picked(call: types.CallbackQuery, state: FSMContext):
+async def competition_picked(call: CallbackQuery, state: FSMContext):
     competition_id, group_id = call.data.split('_')[1], call.data.split('_')[2]
     user_data = await state.get_data()
     await call.message.bot.delete_message(call.message.chat.id, user_data['previous_message_id'])
@@ -66,10 +69,10 @@ async def competition_picked(call: types.CallbackQuery, state: FSMContext):
 
     msg = await call.message.answer("Please enter type of info:", reply_markup=generate_stats_keyboard())
     await state.update_data(previous_message_id=msg.message_id)
-    await OrderCheckLeaders.waiting_for_type_picking.set()
+    await state.set_state(OrderCheckLeaders.waiting_for_type_picking)
 
 
-async def type_picked(call: types.CallbackQuery, state: FSMContext, pg_con: PostgresConnection):
+async def type_picked(call: CallbackQuery, state: FSMContext, pg_con: PostgresConnection):
     user_data = await state.get_data()
     await call.message.bot.delete_message(call.message.chat.id, user_data['previous_message_id'])
     statistics_type = call.data.split('_')[1]
@@ -77,7 +80,7 @@ async def type_picked(call: types.CallbackQuery, state: FSMContext, pg_con: Post
     await send_image(call.message, state, pg_con)
 
 
-async def send_image(message: types.Message, state: FSMContext, pg_con: PostgresConnection):
+async def send_image(message: Message, state: FSMContext, pg_con: PostgresConnection):
     user_data = await state.get_data()
 
     stat_type = user_data['statistics_type']
@@ -126,15 +129,15 @@ async def send_image(message: types.Message, state: FSMContext, pg_con: Postgres
     logger.info(f"Image of points for {user_data['asking_user_id']} sent successfully")
 
 
-def register_handlers_check_leaders(dp: Dispatcher, pg_con: PostgresConnection):
-    async def start_check_process_wrapper(message: types.Message, state: FSMContext):
+def register_handlers_check_leaders(router: Router, pg_con: PostgresConnection):
+    async def start_check_process_wrapper(message: Message, state: FSMContext):
         await start_check_process(message, state, pg_con)
 
-    async def type_picked_wrapper(call: types.CallbackQuery, state: FSMContext):
+    async def type_picked_wrapper(call: CallbackQuery, state: FSMContext):
         await type_picked(call, state, pg_con)
 
-    dp.register_message_handler(start_check_process_wrapper, commands="check_leaders", state="*")
-    dp.register_callback_query_handler(competition_picked, lambda call: call.data.startswith('competition_'),
-                                       state=OrderCheckLeaders.waiting_for_comp_and_group_picking)
-    dp.register_callback_query_handler(type_picked_wrapper, lambda call: call.data.startswith('stats_'),
-                                       state=OrderCheckLeaders.waiting_for_type_picking)
+    router.message.register(start_check_process_wrapper, Command(commands=["check_leaders"]))
+    router.callback_query.register(competition_picked, F.data.startswith('competition_'),
+                                   StateFilter(OrderCheckLeaders.waiting_for_comp_and_group_picking))
+    router.callback_query.register(type_picked_wrapper, F.data.startswith('stats_'),
+                                   StateFilter(OrderCheckLeaders.waiting_for_type_picking))

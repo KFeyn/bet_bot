@@ -1,46 +1,46 @@
-from aiogram import Dispatcher, types
-from aiogram.dispatcher import FSMContext
-from aiogram.types.message import ContentType
+from aiogram import Router, types
+from aiogram.fsm.context import FSMContext
+from aiogram.fsm.state import StatesGroup, State
 from aiogram.utils.deep_linking import decode_payload
+from aiogram.filters import Command, CommandObject
 import binascii
 
-from ..model import User, UserInGroup
-from ..dbworker import PostgresConnection
-from ..utilities import logger, generate_id
+
+from app.model import User, UserInGroup
+from app.dbworker import PostgresConnection
+from app.utilities import logger, generate_id
 
 
-async def starting_message(message: types.Message, state: FSMContext, pg_con: PostgresConnection):
-    """
-    Fills users data if he doesn't exist
+class OrderStates(StatesGroup):
+    waiting_for_start = State()
+    waiting_for_help = State()
 
-    :param message: message
-    :param state: state
-    :param pg_con: postgres connection
-    """
-    await state.finish()
 
+async def starting_message(message: types.Message, state: FSMContext, command: CommandObject,
+                           pg_con: PostgresConnection):
+    await state.clear()
     user = User.from_id((message.chat.id, message.chat.first_name, message.chat.last_name,
                          message.chat.username))
     await user.check_existing(pg_con)
 
     logger.info(f'User {message.chat.first_name} {message.chat.last_name} logged in')
 
-    try:
-        args = message.get_args()
-        reference = decode_payload(args)
-    except binascii.Error:
-        await message.answer('Wrong link!')
-        return
-
-    if reference:
+    args = command.args
+    if args:
         try:
-            addded_by = int(reference.split('_')[1])
+            reference = decode_payload(args)
+        except binascii.Error:
+            await message.answer('Wrong link!')
+            return
+
+        try:
+            added_by = int(reference.split('_')[1])
             group_name = reference.split('_')[0]
         except (IndexError, ValueError):
             await message.answer('Wrong link!')
             return
 
-        uig = UserInGroup.from_message((message.chat.id, generate_id(group_name), addded_by))
+        uig = UserInGroup.from_message((message.chat.id, generate_id(group_name), added_by))
 
         if await uig.check_existing_group(pg_con):
             await uig.check_existing(pg_con)
@@ -48,34 +48,22 @@ async def starting_message(message: types.Message, state: FSMContext, pg_con: Po
             await message.answer('There is no such group, your link is deprecated!')
             return
 
-    await message.answer(f"Hi! It's betting bot. Please check /help to check the rules",
-                         parse_mode=types.ParseMode.HTML)
+    await message.answer("Hi! It's betting bot. Please check /help to check the rules", parse_mode="HTML")
 
 
 async def helping_message(message: types.Message):
-    """
-    List of coommands
-    :param message: message
-    """
     await message.answer('Check rules here https://telegra.ph/Match-Prediction-Competition-Rules-06-27')
 
 
 async def wrong_command_message(message: types.Message):
-    """
-    Reacts on wrong commands
-
-    :param message: message
-    """
-
     logger.info(f'User {message.chat.first_name} {message.chat.last_name} wrote {message.text}')
-
     await message.answer("Wrong command")
 
 
-def register_handlers_common(dp: Dispatcher, pg_con: PostgresConnection):
-    async def starting_message_wrapper(message: types.Message, state: FSMContext):
-        await starting_message(message, state, pg_con)
+def register_handlers_common(router: Router, pg_con: PostgresConnection):
+    async def starting_message_wrapper(message: types.Message, command: CommandObject, state: FSMContext):
+        await starting_message(message, state, command, pg_con)
 
-    dp.register_message_handler(starting_message_wrapper, commands="start", state="*")
-    dp.register_message_handler(helping_message, commands="help", state="*")
-    dp.register_message_handler(wrong_command_message, content_types=ContentType.ANY)
+    router.message.register(starting_message_wrapper, Command(commands=["start"]))
+    router.message.register(helping_message, Command(commands=["help"]))
+    router.message.register(wrong_command_message)

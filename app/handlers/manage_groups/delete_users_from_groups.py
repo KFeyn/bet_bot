@@ -1,9 +1,19 @@
-from aiogram import Dispatcher, types
-from aiogram.dispatcher import FSMContext
+from aiogram import Router, types, F
+from aiogram.fsm.context import FSMContext
+from aiogram.fsm.state import State, StatesGroup
+from aiogram.filters import StateFilter
 
 from app.dbworker import PostgresConnection
 from app.utilities import logger
-from app.handlers.manage_groups.states import OrderDeleteUser, ManageGroupsMenu
+
+
+class OrderDeleteUser(StatesGroup):
+    waiting_for_group_picking = State()
+    waiting_for_user_picking = State()
+
+
+class ManageGroupsMenu(StatesGroup):
+    waiting_for_action_choice = State()
 
 
 async def start_deleting_user_from_group(call: types.CallbackQuery, state: FSMContext, pg_con: PostgresConnection):
@@ -12,8 +22,8 @@ async def start_deleting_user_from_group(call: types.CallbackQuery, state: FSMCo
 
     query = f"""
     select
-            grps.id
-            ,grps.name
+            grps.id,
+            grps.name
     from 
             bets.groups as grps
     join
@@ -29,13 +39,15 @@ async def start_deleting_user_from_group(call: types.CallbackQuery, state: FSMCo
         await call.message.answer("You are not an administrator in any group!")
         return
 
-    elif len(grps) > 1:
-        keyboard = types.InlineKeyboardMarkup()
+    if len(grps) > 1:
+        keyboard_buttons = []
         for grp in grps:
-            keyboard.add(types.InlineKeyboardButton(text=grp['name'], callback_data=f"grp_{grp['id']}"))
+            keyboard_buttons.append([types.InlineKeyboardButton(text=grp['name'], callback_data=f"grp_{grp['id']}")])
+        keyboard = types.InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
+
         msg = await call.message.answer("Please choose group:", reply_markup=keyboard)
         await state.update_data(previous_message_id=msg.message_id, asking_user_id=str(call.message.chat.id))
-        await OrderDeleteUser.waiting_for_group_picking.set()
+        await state.set_state(OrderDeleteUser.waiting_for_group_picking)
     else:
         await state.update_data(group_id=grps[0]['id'], asking_user_id=str(call.message.chat.id))
         await pick_user_from_group(call.message, state, pg_con)
@@ -53,8 +65,8 @@ async def pick_user_from_group(message: types.Message, state: FSMContext, pg_con
     user_data = await state.get_data()
     query = f"""
     select
-            usr.id
-            ,usr.first_name || ' ' || usr.last_name as user_name
+            usr.id,
+            usr.first_name || ' ' || usr.last_name as user_name
     from 
             bets.groups as grps
     join
@@ -73,13 +85,15 @@ async def pick_user_from_group(message: types.Message, state: FSMContext, pg_con
     if len(users) == 0:
         await message.answer("There are no members in this group or they placed bets!")
         return
-    else:
-        keyboard = types.InlineKeyboardMarkup()
-        for usr in users:
-            keyboard.add(types.InlineKeyboardButton(text=usr['user_name'], callback_data=f"usr_{usr['id']}"))
-        msg = await message.answer("Please choose group member:", reply_markup=keyboard)
-        await state.update_data(previous_message_id=msg.message_id)
-        await OrderDeleteUser.waiting_for_group_picking.set()
+
+    keyboard_buttons = []
+    for usr in users:
+        keyboard_buttons.append([types.InlineKeyboardButton(text=usr['user_name'], callback_data=f"usr_{usr['id']}")])
+    keyboard = types.InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
+
+    msg = await message.answer("Please choose group member:", reply_markup=keyboard)
+    await state.update_data(previous_message_id=msg.message_id)
+    await state.set_state(OrderDeleteUser.waiting_for_user_picking)
 
 
 async def delete_user_from_group(call: types.CallbackQuery, state: FSMContext, pg_con: PostgresConnection):
@@ -90,8 +104,7 @@ async def delete_user_from_group(call: types.CallbackQuery, state: FSMContext, p
     logger.info(f"User {user_data['asking_user_id']} deleted user {user_id} from group {user_data['group_id']}")
 
 
-def register_handlers_delete_users_from_groups(dp: Dispatcher, pg_con: PostgresConnection):
-
+def register_handlers_delete_users_from_groups(router: Router, pg_con: PostgresConnection):
     async def start_deleting_user_from_group_wrapper(call: types.CallbackQuery, state: FSMContext):
         await start_deleting_user_from_group(call, state, pg_con)
 
@@ -101,9 +114,9 @@ def register_handlers_delete_users_from_groups(dp: Dispatcher, pg_con: PostgresC
     async def delete_user_from_group_wrapper(call: types.CallbackQuery, state: FSMContext):
         await delete_user_from_group(call, state, pg_con)
 
-    dp.register_callback_query_handler(start_deleting_user_from_group_wrapper,
-                                       state=ManageGroupsMenu.waiting_for_action_choice)
-    dp.register_callback_query_handler(group_picked_wrapper, lambda call: call.data.startswith('grp_'),
-                                       state=OrderDeleteUser.waiting_for_group_picking)
-    dp.register_callback_query_handler(delete_user_from_group_wrapper, lambda call: call.data.startswith('usr_'),
-                                       state=OrderDeleteUser.waiting_for_user_picking)
+    router.callback_query.register(start_deleting_user_from_group_wrapper,
+                                   StateFilter(ManageGroupsMenu.waiting_for_action_choice))
+    router.callback_query.register(group_picked_wrapper, F.data.startswith('grp_'),
+                                   StateFilter(OrderDeleteUser.waiting_for_group_picking))
+    router.callback_query.register(delete_user_from_group_wrapper, F.data.startswith('usr_'),
+                                   StateFilter(OrderDeleteUser.waiting_for_user_picking))
