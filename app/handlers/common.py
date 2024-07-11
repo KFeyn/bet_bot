@@ -1,14 +1,14 @@
-from aiogram import Router, types
-from aiogram.fsm.context import FSMContext
-from aiogram.fsm.state import StatesGroup, State
-from aiogram.utils.deep_linking import decode_payload
-from aiogram.filters import Command, CommandObject
 import binascii
 
+from aiogram import Router, types
+from aiogram.filters import Command, CommandObject
+from aiogram.fsm.context import FSMContext
+from aiogram.fsm.state import State, StatesGroup
+from aiogram.utils.deep_linking import decode_payload
 
-from app.model import User, UserInGroup
 from app.dbworker import PostgresConnection
-from app.utilities import logger, generate_id
+from app.models import User, UserInGroup
+from app.utils import generate_id, logger
 
 
 class OrderStates(StatesGroup):

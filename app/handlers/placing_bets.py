@@ -5,7 +5,7 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.filters import Command, StateFilter
 
 from app.dbworker import PostgresConnection
-from app.utilities import logger, generate_teams_keyboard, generate_number_keyboard
+from app.utils import logger, generate_teams_keyboard, generate_number_keyboard
 
 
 class OrderPlaceBets(StatesGroup):

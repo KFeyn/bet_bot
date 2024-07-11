@@ -1,16 +1,19 @@
 import asyncio
+import logging
 import os
-from aiogram import Bot, Dispatcher, Router
-from aiogram.types import BotCommand
-from aiogram.fsm.storage.memory import MemoryStorage
 
-from app.handlers.common import register_handlers_common
-from app.handlers.placing_bets import register_handlers_add_bet
-from app.handlers.check_bets import register_handlers_check_bet
-from app.handlers.check_competition import register_handlers_check_competition
-from app.handlers.check_leaders import register_handlers_check_leaders
-from app.handlers.manage_groups.manage_groups import register_handlers_manage_groups
+from aiogram import Bot, Dispatcher, Router
+from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram.types import BotCommand
 from app.dbworker import PostgresConnection
+from app.handlers import (register_handlers_add_bet, register_handlers_check_bet,
+                          register_handlers_check_competition, register_handlers_check_leaders,
+                          register_handlers_common, register_handlers_manage_groups)
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s+3h - %(levelname)s - %(name)s - %(message)s",
+)
 
 
 async def set_commands(bot: Bot):

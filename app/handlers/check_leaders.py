@@ -5,7 +5,7 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.filters import Command, StateFilter
 
 from app.dbworker import PostgresConnection
-from app.utilities import make_plot_points, logger, generate_stats_keyboard, make_plot_points_detailed
+from app.utils import make_plot_points, logger, generate_stats_keyboard, make_plot_points_detailed
 
 
 class OrderCheckLeaders(StatesGroup):

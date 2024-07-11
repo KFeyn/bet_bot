@@ -4,7 +4,7 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.filters import StateFilter
 
 from app.dbworker import PostgresConnection
-from app.utilities import logger
+from app.utils import logger
 
 
 class OrderDeleteGroup(StatesGroup):

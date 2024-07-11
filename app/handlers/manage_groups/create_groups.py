@@ -1,14 +1,15 @@
+import asyncpg
+import random
+
 from aiogram import Router, types, F
+from aiogram.filters import StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.utils.deep_linking import create_start_link
-from aiogram.filters import StateFilter
-import random
-import asyncpg
 
 from app.dbworker import PostgresConnection
-from app.utilities import logger, generate_competition_keyboard, generate_id, is_integer
-from app.model import Competition
+from app.models import Competition
+from app.utils import generate_competition_keyboard, generate_id, is_integer, logger
 
 
 class OrderCreateGroup(StatesGroup):

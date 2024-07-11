@@ -1,6 +1,6 @@
 import typing as tp
 import asyncpg
-from app.utilities import logger
+from app.utils import logger
 
 
 class PostgresConnection:

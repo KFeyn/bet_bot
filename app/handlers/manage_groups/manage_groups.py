@@ -4,7 +4,7 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.filters import Command, StateFilter
 
 from app.dbworker import PostgresConnection
-from app.utilities import generate_manage_groups_keyboard
+from app.utils import generate_manage_groups_keyboard
 from app.handlers.manage_groups.create_groups import register_handlers_create_groups, choose_competition
 from app.handlers.manage_groups.delete_groups import register_handlers_delete_groups, start_deleting_group
 from app.handlers.manage_groups.delete_users_from_groups import (register_handlers_delete_users_from_groups,

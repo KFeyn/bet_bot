@@ -1,12 +1,13 @@
-import matplotlib.pyplot as plt
-import matplotlib
-import typing as tp
+import hashlib
 import io
-from aiogram import types
 import logging
 from collections import defaultdict
+import typing as tp
+
+from aiogram import types
+import matplotlib
 import matplotlib.colors as mcolors
-import hashlib
+import matplotlib.pyplot as plt
 
 matplotlib.use('Agg')
 

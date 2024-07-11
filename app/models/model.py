@@ -1,7 +1,7 @@
 from __future__ import annotations
 import dataclasses
-from app.dbworker import PostgresConnection
-from app.utilities import logger, generate_id
+from app.dbworker.dbworker import PostgresConnection
+from app.utils.utilities import logger, generate_id
 import datetime
 
 

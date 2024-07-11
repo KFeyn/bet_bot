@@ -1,0 +1,7 @@
+from app.handlers.placing_bets import register_handlers_add_bet
+from app.handlers.common import register_handlers_common
+from app.handlers.manage_groups import register_handlers_manage_groups
+from app.handlers.check_competition import register_handlers_check_competition
+from app.handlers.check_leaders import register_handlers_check_leaders
+from app.handlers.check_bets import register_handlers_check_bet
+
