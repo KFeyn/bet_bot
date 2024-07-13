@@ -8,10 +8,16 @@ import typing as tp
 import os
 
 logger = logging.getLogger()
-logger.setLevel(logging.INFO)
-formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(name)s - %(message)s')
-for handler in logger.handlers:
-    handler.setFormatter(formatter)
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s+3h - %(levelname)s - %(name)s - %(message)s",
+)
+
+
+def create_dt(dt: str) -> str:
+    original_date = datetime.fromisoformat(dt.replace("Z", "+00:00"))
+    original_date = original_date + timedelta(hours=3)
+    return original_date.strftime("%Y-%m-%d %H:%M:%S%z").replace('0000', '03')
 
 
 def generate_id(value: str) -> int:
@@ -23,12 +29,22 @@ def generate_id(value: str) -> int:
     return integer_value
 
 
+class Competition:
+    def __init__(self, start_date: str, last_date: str, competition_code: str, season: str):
+        self.start_date = create_dt(start_date)
+        self.last_date = create_dt(last_date)
+        self.competition_code = competition_code
+        self.season = season
+        self.id = generate_id(f"{competition_code} {season}" if competition_code != 'EC'
+                              else f"Euro {season}")
+        self.date_to_compare = datetime.strptime(last_date, '%Y-%m-%d')
+
+
 class Match:
-    def __init__(self, match_data, competition_code, season):
+    def __init__(self, match_data: tp.Dict, competition: Competition):
         self.first_team = match_data['homeTeam']['name']
         self.second_team = match_data['awayTeam']['name']
-        self.competition_id = generate_id(f"{competition_code} {season}" if competition_code != 'EC'
-                                          else f"Euro {season}")
+        self.competition_id = competition.id
         self.first_team_goals = match_data['score']['fullTime']['home']
         self.second_team_goals = match_data['score']['fullTime']['away']
         self.status = match_data['status']
@@ -47,10 +63,7 @@ class Match:
             self.penalty_winner = None
         else:
             self.penalty_winner = 0
-
-        original_date = datetime.fromisoformat(match_data['utcDate'].replace("Z", "+00:00"))
-        original_date = original_date + timedelta(hours=3)
-        self.dt = original_date.strftime("%Y-%m-%d %H:%M:%S%z").replace('0000', '03')
+        self.dt = create_dt(match_data['utcDate'])
 
         stage_map = {
             'LAST_32': '1/16 final',
@@ -63,16 +76,18 @@ class Match:
         self.stage = stage_map.get(match_data['stage'], None)
 
 
-def process_data(data) -> tp.List[Match]:
+def process_data(data) -> (tp.List[Match], Competition):
     competition_code = data['competition']['code']
     season = data['filters']['season']
 
     last_day_str = data['resultSet']['last']
-    last_day = datetime.strptime(last_day_str, '%Y-%m-%d')
+    first_day_str = data['resultSet']['first']
 
-    if datetime.now() > last_day + timedelta(days=1):
+    competition = Competition(first_day_str, last_day_str, competition_code, season)
+
+    if datetime.now() > competition.date_to_compare + timedelta(days=1):
         logger.info("Competition last day is more than one day ahead, no need to process")
-        return []
+        return [], competition
 
     stage_map = {
         'LAST_32': '1/16 final',
@@ -87,15 +102,15 @@ def process_data(data) -> tp.List[Match]:
     for match_data in data['matches']:
         stage = stage_map.get(match_data['stage'])
         if stage:
-            match = Match(match_data, competition_code, season)
+            match = Match(match_data, competition)
             if match.first_team and match.second_team:
                 matches.append(match)
 
     logger.info(f"Processed {len(matches)} matches")
-    return matches
+    return matches, competition
 
 
-def fetch_and_process_data(api_url: str, api_key: str) -> tp.List[Match]:
+def fetch_and_process_data(api_url: str, api_key: str) -> (tp.List[Match], Competition):
     logger.info(f"Fetching data from API: {api_url}")
     response = requests.get(api_url, headers={'X-Auth-Token': api_key})
     if response.status_code == 200:
@@ -137,6 +152,7 @@ class DatabaseHandler:
                 SELECT api_url, competition_code
                 FROM bets.competitions
                 WHERE need_to_parse = true
+                or end_date is null
             """
             cursor.execute(query)
             competitions = cursor.fetchall()
@@ -209,6 +225,39 @@ class DatabaseHandler:
         finally:
             self.close_connection()
 
+    def update_competition(self, competition: Competition):
+
+        try:
+            self.connect()
+            cursor = self.connection.cursor()
+            date_query = """
+                update bets.competitions
+                set 
+                    start_date = %s,
+                    end_date = %s
+                where 
+                    id = %s
+                    and start_date is null
+                    and end_date is null
+            """
+            parse_query = """
+                update bets.competitions
+                set 
+                    need_to_parse = False
+                where 
+                    end_date < now()
+            """
+            cursor.execute(date_query, (competition.start_date, competition.last_date, competition.id))
+            cursor.execute(parse_query)
+            self.connection.commit()
+            cursor.close()
+
+        except Exception as e:
+            logger.error(f"Error fetching competitions: {e}")
+            return
+        finally:
+            self.close_connection()
+
 
 def main():
     db_handler = DatabaseHandler(dbname=os.environ.get('PG_db'),
@@ -220,8 +269,9 @@ def main():
     api_key = os.environ.get('API_KEY')
 
     for api_url, competition_code in competitions:
-        matches = fetch_and_process_data(api_url, api_key)
+        matches, competition = fetch_and_process_data(api_url, api_key)
         db_handler.insert_or_update_matches(matches)
+        db_handler.update_competition(competition)
 
 
 if __name__ == '__main__':
