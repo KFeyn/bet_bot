@@ -57,18 +57,20 @@ async def start_check_process(message: Message, state: FSMContext, pg_con: Postg
         await state.update_data(competition_id=comps[0]['competition_id'], group_id=comps[0]['group_id'],
                                 asking_user_id=str(message.chat.id))
 
-        msg = await message.answer("Please enter the stage:", reply_markup=generate_stage_keyboard())
+        keyb = await generate_stage_keyboard(comps[0]['competition_id'], pg_con)
+        msg = await message.answer("Please enter the stage:", reply_markup=keyb)
         await state.update_data(previous_message_id=msg.message_id)
         await state.set_state(OrderCheckBets.waiting_for_stage_picking)
 
 
-async def competition_picked(call: CallbackQuery, state: FSMContext):
+async def competition_picked(call: CallbackQuery, state: FSMContext, pg_con: PostgresConnection):
     competition_id, group_id = call.data.split('_')[1], call.data.split('_')[2]
     user_data = await state.get_data()
     await call.message.bot.delete_message(call.message.chat.id, user_data['previous_message_id'])
     await state.update_data(competition_id=competition_id, group_id=group_id)
 
-    msg = await call.message.answer("Please enter the stage:", reply_markup=generate_stage_keyboard())
+    keyb = await generate_stage_keyboard(int(competition_id), pg_con)
+    msg = await call.message.answer("Please enter the stage:", reply_markup=keyb)
     await state.update_data(previous_message_id=msg.message_id)
     await state.set_state(OrderCheckBets.waiting_for_stage_picking)
 
@@ -178,7 +180,7 @@ def register_handlers_check_bet(router: Router, pg_con: PostgresConnection):
         await start_check_process(message, state, pg_con)
 
     async def competition_picked_wrapper(call: CallbackQuery, state: FSMContext):
-        await competition_picked(call, state)
+        await competition_picked(call, state, pg_con)
 
     async def start_picking_match_wrapper(call: CallbackQuery, state: FSMContext):
         await start_picking_match(call, state, pg_con)

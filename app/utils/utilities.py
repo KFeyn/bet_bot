@@ -9,6 +9,8 @@ import matplotlib
 import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
 
+from app.dbworker import PostgresConnection
+
 matplotlib.use('Agg')
 
 logger = logging.getLogger()
@@ -139,6 +141,7 @@ def pivot_table(data: tp.List[tp.List]) -> tp.List[tp.List]:
     overall_row = ['overall']
     for user_name in sorted_users:
         overall_row.append(user_points[user_name])
+    result = result[:16]
     result.append(overall_row)
 
     return result
@@ -182,12 +185,24 @@ def make_plot_points_detailed(table_data: tp.List[tp.List], name: str) -> types.
     return types.BufferedInputFile(buf.read(), 'file.png')
 
 
-def generate_stage_keyboard() -> types.InlineKeyboardMarkup:
-    keyboard_buttons = [[types.InlineKeyboardButton(text='1/16 final', callback_data='stage_1/16 final')],
-                        [types.InlineKeyboardButton(text='1/8 final', callback_data='stage_1/8 final')],
-                        [types.InlineKeyboardButton(text='1/4 final', callback_data='stage_1/4 final')],
-                        [types.InlineKeyboardButton(text='1/2 final', callback_data='stage_1/2 final')],
-                        [types.InlineKeyboardButton(text='final', callback_data='stage_final')]]
+async def generate_stage_keyboard(competition_id: int, pg_con: PostgresConnection) -> types.InlineKeyboardMarkup:
+    query = f"""
+    select
+            stage
+    from
+            bets.matches
+    where
+            competition_id = {competition_id}
+    group by 
+            stage
+    order by 
+            min(dt)
+    """
+    stages = await pg_con.get_data(query)
+    keyboard_buttons = []
+    for stage in stages:
+        stage = stage['stage']
+        keyboard_buttons.append([types.InlineKeyboardButton(text=stage, callback_data=f'stage_{stage}')])
 
     keyboard = types.InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
     return keyboard

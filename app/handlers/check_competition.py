@@ -49,13 +49,14 @@ async def start_picking_competition(message: Message, state: FSMContext, pg_con:
         await state.set_state(OrderCheckCompetitions.waiting_for_competition_picking)
 
 
-async def competition_picked(call: CallbackQuery, state: FSMContext):
+async def competition_picked(call: CallbackQuery, state: FSMContext, pg_con: PostgresConnection):
     user_data = await state.get_data()
     await call.message.bot.delete_message(call.message.chat.id, user_data['previous_message_id'])
     competition_id, competition_name = call.data.split('_')[1], call.data.split('_')[2]
     await state.update_data(competition_id=competition_id, competition_name=competition_name)
 
-    msg = await call.message.answer("Please enter the stage:", reply_markup=generate_stage_keyboard())
+    keyb = await generate_stage_keyboard(int(competition_id), pg_con)
+    msg = await call.message.answer("Please enter the stage:", reply_markup=keyb)
     await state.update_data(previous_message_id=msg.message_id)
     await state.set_state(OrderCheckCompetitions.waiting_for_stage_picking)
 
@@ -101,8 +102,11 @@ def register_handlers_check_competition(router: Router, pg_con: PostgresConnecti
     async def send_image_wrapper(call: CallbackQuery, state: FSMContext):
         await send_image(call, state, pg_con)
 
+    async def competition_picked_wrapper(call: CallbackQuery, state: FSMContext):
+        await competition_picked(call, state, pg_con)
+
     router.message.register(start_picking_competition_wrapper, Command(commands=["check_competition"]))
-    router.callback_query.register(competition_picked, F.data.startswith('competition_'),
+    router.callback_query.register(competition_picked_wrapper, F.data.startswith('competition_'),
                                    StateFilter(OrderCheckCompetitions.waiting_for_competition_picking))
     router.callback_query.register(send_image_wrapper, F.data.startswith('stage_'),
                                    StateFilter(OrderCheckCompetitions.waiting_for_stage_picking))
