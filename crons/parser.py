@@ -55,11 +55,9 @@ class Match:
             self.second_team_goals = self.second_team_goals - penalties['away']
             if penalties['home'] > penalties['away']:
                 self.penalty_winner = 1
-            elif penalties['away'] > penalties['home']:
-                self.penalty_winner = 2
             else:
-                self.penalty_winner = 0
-        elif self.first_team_goals is not None:
+                self.penalty_winner = 2
+        elif self.first_team_goals is None:
             self.penalty_winner = None
         else:
             self.penalty_winner = 0
