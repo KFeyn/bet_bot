@@ -41,7 +41,7 @@ async def choose_start_stage(call: types.CallbackQuery, state: FSMContext):
     user_data = await state.get_data()
     await call.message.bot.delete_message(call.message.chat.id, user_data['previous_message_id'])
 
-    msg = await call.message.answer("Please choose from which tstae you will start betting:",
+    msg = await call.message.answer("Please choose from which state you will start betting:",
                                     reply_markup=generate_starting_stage_keyboard())
     await state.update_data(previous_message_id=msg.message_id, competition_name=competition_name)
     await state.set_state(OrderCreateGroup.waiting_for_start_stage_picking)
@@ -106,7 +106,7 @@ async def create_invite_link(message: types.Message, state: FSMContext, pg_con: 
         await message.reply('It is not a number, please type the correct number')
         tries = int(user_data.get('tries', 0)) + 1
         if tries > 2:
-            await message.reply('You are mistaken 3 times, exiting from prepaiting groups')
+            await message.reply('You are mistaken 3 times, exiting from preparing groups')
             await state.clear()
             return
         await state.update_data(tries=tries)
