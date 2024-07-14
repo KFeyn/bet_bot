@@ -193,6 +193,9 @@ async def generate_stage_keyboard(competition_id: int, pg_con: PostgresConnectio
             bets.matches
     where
             competition_id = {competition_id}
+            and exists (select 1 from bets.groups_in_competitions as gic where gic.competition_id = 
+                bets.matches.competition_id and case when gic.starting_stage = 'play off' then bets.matches.stage 
+                like '%final%' else 1 = 1 end)
     group by 
             stage
     order by 

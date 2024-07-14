@@ -90,7 +90,10 @@ async def start_picking_match(message: Message, state: FSMContext, pg_con: Postg
                 bets.matches 
         where
                 not exists (select 1 from bets.bets where bets.matches.id = bets.bets.match_id
-                and bets.bets.user_id = {message.chat.id})
+                    and bets.bets.user_id = {message.chat.id})
+                and exists (select 1 from bets.groups_in_competitions as gic where gic.competition_id = 
+                bets.matches.competition_id and case when gic.starting_stage = 'play off' then bets.matches.stage 
+                like '%final%' else 1 = 1 end)
                 and competition_id = {user_data['competition_id']}
                 and dt - now() > interval '1 hours'
         order by dt
