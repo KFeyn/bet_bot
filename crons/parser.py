@@ -8,10 +8,10 @@ import typing as tp
 import os
 
 logger = logging.getLogger()
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s+3h - %(levelname)s - %(name)s - %(message)s",
-)
+logger.setLevel(logging.INFO)
+formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(name)s - %(message)s')
+for handler in logger.handlers:
+    handler.setFormatter(formatter)
 
 
 def create_dt(dt: str) -> str:
@@ -59,13 +59,21 @@ class Match:
                 self.penalty_winner = 2
             else:
                 self.penalty_winner = 0
-        elif not self.first_team_goals:
+        elif self.first_team_goals is not None:
             self.penalty_winner = None
         else:
             self.penalty_winner = 0
         self.dt = create_dt(match_data['utcDate'])
 
+        stage_type = f"{match_data['stage']}_{match_data['matchday']}" if match_data['stage'] == 'GROUP_STAGE' else (
+            match_data)['stage']
         stage_map = {
+            'GROUP_STAGE_1': 'group matchday 1',
+            'GROUP_STAGE_2': 'group matchday 2',
+            'GROUP_STAGE_3': 'group matchday 3',
+            'GROUP_STAGE_4': 'group matchday 4',
+            'GROUP_STAGE_5': 'group matchday 5',
+            'GROUP_STAGE_6': 'group matchday 6',
             'LAST_32': '1/16 final',
             'LAST_16': '1/8 final',
             'QUARTER_FINALS': '1/4 final',
@@ -73,7 +81,7 @@ class Match:
             'THIRD_PLACE': 'final',
             'FINAL': 'final'
         }
-        self.stage = stage_map.get(match_data['stage'], None)
+        self.stage = stage_map.get(stage_type)
 
 
 def process_data(data) -> (tp.List[Match], Competition):
@@ -89,22 +97,11 @@ def process_data(data) -> (tp.List[Match], Competition):
         logger.info("Competition last day is more than one day ahead, no need to process")
         return [], competition
 
-    stage_map = {
-        'LAST_32': '1/16 final',
-        'LAST_16': '1/8 final',
-        'QUARTER_FINALS': '1/4 final',
-        'SEMI_FINALS': '1/2 final',
-        'THIRD_PLACE': 'final',
-        'FINAL': 'final'
-    }
-
     matches = []
     for match_data in data['matches']:
-        stage = stage_map.get(match_data['stage'])
-        if stage:
-            match = Match(match_data, competition)
-            if match.first_team and match.second_team:
-                matches.append(match)
+        match = Match(match_data, competition)
+        if match.first_team and match.second_team:
+            matches.append(match)
 
     logger.info(f"Processed {len(matches)} matches")
     return matches, competition
@@ -245,7 +242,7 @@ class DatabaseHandler:
                 set 
                     need_to_parse = False
                 where 
-                    end_date < now()
+                    now() - end_date > interval '2 days'
             """
             cursor.execute(date_query, (competition.start_date, competition.last_date, competition.id))
             cursor.execute(parse_query)
