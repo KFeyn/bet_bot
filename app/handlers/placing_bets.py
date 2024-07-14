@@ -35,7 +35,7 @@ async def start_bet_process(message: Message, state: FSMContext, pg_con: Postgre
     join
             bets.competitions as comp
                     on comp.id = gic.competition_id
-                    and comp.end_date - now() > interval '1 hours'
+                    and now() - comp.end_date < interval '24 hours'
     where 
             uig.user_id = {message.chat.id}
     """
