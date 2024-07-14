@@ -1,18 +1,10 @@
 from aiogram import Router, types, F
 from aiogram.fsm.context import FSMContext
-from aiogram.fsm.state import State, StatesGroup
 from aiogram.filters import StateFilter
 
 from app.dbworker import PostgresConnection
 from app.utils import logger
-
-
-class OrderDeleteGroup(StatesGroup):
-    waiting_for_group_picking = State()
-
-
-class ManageGroupsMenu(StatesGroup):
-    waiting_for_action_choice = State()
+from app.handlers.manage_groups.states import OrderDeleteGroup, ManageGroupsMenu
 
 
 async def start_deleting_group(call: types.CallbackQuery, state: FSMContext, pg_con: PostgresConnection):

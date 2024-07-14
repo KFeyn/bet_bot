@@ -1,6 +1,5 @@
 from aiogram import Router, types, F
 from aiogram.fsm.context import FSMContext
-from aiogram.fsm.state import State, StatesGroup
 from aiogram.filters import Command, StateFilter
 
 from app.dbworker import PostgresConnection
@@ -9,10 +8,7 @@ from app.handlers.manage_groups.create_groups import register_handlers_create_gr
 from app.handlers.manage_groups.delete_groups import register_handlers_delete_groups, start_deleting_group
 from app.handlers.manage_groups.delete_users_from_groups import (register_handlers_delete_users_from_groups,
                                                                  start_deleting_user_from_group)
-
-
-class ManageGroupsMenu(StatesGroup):
-    waiting_for_action_choice = State()
+from app.handlers.manage_groups.states import ManageGroupsMenu
 
 
 async def show_manage_groups_menu(message: types.Message, state: FSMContext):
@@ -44,7 +40,6 @@ def register_handlers_manage_groups(router: Router, pg_con: PostgresConnection):
                                    F.data.startswith('manage_'),
                                    StateFilter(ManageGroupsMenu.waiting_for_action_choice))
 
-    # Register handlers from other files
     register_handlers_create_groups(router, pg_con)
     register_handlers_delete_groups(router, pg_con)
     register_handlers_delete_users_from_groups(router, pg_con)

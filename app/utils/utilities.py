@@ -248,3 +248,10 @@ def generate_manage_groups_keyboard() -> types.InlineKeyboardMarkup:
                                                     callback_data="manage_deleteuserfromgroup")]]
     keyboard = types.InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
     return keyboard
+
+
+def generate_starting_stage_keyboard() -> types.InlineKeyboardMarkup:
+    keyboard_buttons = [[types.InlineKeyboardButton(text="Group Stage", callback_data="startstage_play off")],
+                        [types.InlineKeyboardButton(text="Play Off", callback_data="startstage_group stage")]]
+    keyboard = types.InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
+    return keyboard

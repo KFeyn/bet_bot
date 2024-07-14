@@ -3,7 +3,8 @@ from aiogram.fsm.state import State, StatesGroup
 
 class OrderCreateGroup(StatesGroup):
     waiting_for_comp_picking = State()
-    waiting_for_money_picking = State()
+    waiting_for_start_stage_picking = State()
+    waiting_for_money_entering = State()
 
 
 class OrderDeleteGroup(StatesGroup):
