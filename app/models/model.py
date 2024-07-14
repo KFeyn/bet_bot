@@ -103,6 +103,9 @@ class UserInGroup:
                 bets.groups
         where 
                 id = {self.group_id}
+                and not exists (select 1 from bets.groups_in_competitions as gic join
+                 bets.competitions as cmp on cmp.id = gic.competition_id where  now() > cmp.start_date and gic.group_id 
+                 = bets.groups.id )
         """
         if await pg_con.get_data(query):
             return True
