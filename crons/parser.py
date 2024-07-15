@@ -160,18 +160,19 @@ class DatabaseHandler:
             self.connection = None
             logger.info("Database connection closed")
 
-    def check_existing_competition(self, competition: Competition):
+    def check_existing_competition(self, competitions: tp.List[Competition]):
+        ids_list = ', '.join([str(competition.id) for competition in competitions])
         try:
             self.connect()
             cursor = self.connection.cursor()
             query = f"""
                     select 
-                            name
+                            id
                     from 
                             bets.competitions
                     where 
-                            id = {competition.id}
-                """
+                            id in ({ids_list})
+            """
             cursor.execute(query)
             competition_db = cursor.fetchall()
             cursor.close()
@@ -180,18 +181,19 @@ class DatabaseHandler:
             return
         finally:
             self.close_connection()
-
-        if competition_db:
+        existing_competitions = [comp[0] for comp in competition_db]
+        new_competitions = [competition for competition in competitions if competition.id not in existing_competitions]
+        if not new_competitions:
             return
         else:
-            logger.info(f"Inserting {competition.name} into the database")
+            logger.info(f"Inserting {len(new_competitions)} competitions into the database")
             insert_query = """
                     INSERT INTO bets.competitions 
                     (name, year, need_to_parse, api_url, competition_code, start_date, end_date)
                     VALUES %s
                 """
             insert_data = [(competition.name, competition.season, True, competition.api_url, competition.code,
-                           competition.start_date, competition.last_date)]
+                           competition.start_date, competition.last_date) for competition in new_competitions]
             try:
                 self.connect()
                 cursor = self.connection.cursor()
@@ -293,7 +295,8 @@ class DatabaseHandler:
                 set 
                     need_to_parse = False
                 where 
-                    now() - end_date > interval '2 days'
+                    need_to_parse = True
+                    and now() - end_date > interval '2 days'
             """
             cursor.execute(parse_query)
             self.connection.commit()
@@ -315,12 +318,11 @@ def main():
     api_key = os.environ.get('API_KEY')
 
     competitions_to_add = fetch_competitions_to_choose(api_key)
-    for competition in competitions_to_add:
-        db_handler.check_existing_competition(competition)
+    db_handler.check_existing_competition(competitions_to_add)
+    db_handler.update_competition()
 
     competitions = db_handler.fetch_competitions_to_parse()
     for api_url, competition_code in competitions:
-        db_handler.update_competition()
         matches = fetch_and_process_data(api_url, api_key)
         db_handler.insert_or_update_matches(matches)
 
