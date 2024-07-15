@@ -1,1 +1,1 @@
-from .model import User, Competition, UserInGroup
+from .model import User, UserInGroup

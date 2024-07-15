@@ -218,10 +218,22 @@ def generate_stats_keyboard() -> types.InlineKeyboardMarkup:
     return keyboard
 
 
-def generate_competition_keyboard() -> types.InlineKeyboardMarkup:
-    keyboard_buttons = [[types.InlineKeyboardButton(text='Champions League', callback_data='comps_CL')],
-                        [types.InlineKeyboardButton(text='World Championship', callback_data='comps_WC')],
-                        [types.InlineKeyboardButton(text='Europe Championship', callback_data='comps_Euro')]]
+async def generate_competition_keyboard(pg_con: PostgresConnection) -> types.InlineKeyboardMarkup:
+    query = f"""
+    select
+            id, name 
+    from
+            bets.competitions
+    where
+            start_date - now() > interval '1 day'
+    """
+
+    competitions = await pg_con.get_data(query)
+    keyboard_buttons = []
+    for competition in competitions:
+        c_id, name = competition['id'], competition['name']
+        keyboard_buttons.append([types.InlineKeyboardButton(text=name, callback_data=f'stage_{c_id}_{name}')])
+
     keyboard = types.InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
     return keyboard
 

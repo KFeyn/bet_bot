@@ -7,7 +7,6 @@ from aiogram.fsm.context import FSMContext
 from aiogram.utils.deep_linking import create_start_link
 
 from app.dbworker import PostgresConnection
-from app.models import Competition
 from app.utils import generate_competition_keyboard, generate_starting_stage_keyboard, generate_id, is_integer, logger
 from app.handlers.manage_groups.states import OrderCreateGroup, ManageGroupsMenu
 
@@ -26,24 +25,29 @@ async def check_groups(pg_con: PostgresConnection, user_id: int) -> bool:
     return int(nums[0]['cnt']) <= 2
 
 
-async def choose_competition(call: types.CallbackQuery, state: FSMContext):
+async def choose_competition(call: types.CallbackQuery, state: FSMContext, pg_con: PostgresConnection):
     user_data = await state.get_data()
     await call.message.bot.delete_message(call.message.chat.id, user_data['previous_message_id'])
+    keyb = await generate_competition_keyboard(pg_con)
+    if len(keyb.inline_keyboard) == 0:
+        await call.message.answer('There are no suitable competitions!')
+        return
 
-    msg = await call.message.answer("Please choose a competition:", reply_markup=generate_competition_keyboard())
+    msg = await call.message.answer("Please choose a competition:", reply_markup=keyb)
     await state.update_data(previous_message_id=msg.message_id, asking_user_id=str(msg.chat.id))
     await state.set_state(OrderCreateGroup.waiting_for_comp_picking)
 
 
 async def choose_start_stage(call: types.CallbackQuery, state: FSMContext):
-    competition_name = call.data.split('_')[1]
+    competition_id, competition_name = call.data.split('_')[1], call.data.split('_')[2]
 
     user_data = await state.get_data()
     await call.message.bot.delete_message(call.message.chat.id, user_data['previous_message_id'])
 
     msg = await call.message.answer("Please choose from which state you will start betting:",
                                     reply_markup=generate_starting_stage_keyboard())
-    await state.update_data(previous_message_id=msg.message_id, competition_name=competition_name)
+    await state.update_data(previous_message_id=msg.message_id, competition_name=competition_name,
+                            competition_id=competition_id)
     await state.set_state(OrderCreateGroup.waiting_for_start_stage_picking)
 
 
@@ -64,6 +68,7 @@ async def create_invite_link(message: types.Message, state: FSMContext, pg_con: 
     if is_integer(money):
         await message.bot.delete_message(message.chat.id, user_data['previous_message_id'])
         competition_name = user_data['competition_name']
+        competition_id = user_data['competition_id']
         user_id = int(user_data['asking_user_id'])
         start_stage = user_data['start_stage']
 
@@ -71,10 +76,7 @@ async def create_invite_link(message: types.Message, state: FSMContext, pg_con: 
             await message.answer('You reached the limit of three groups!')
             return
 
-        competition = Competition.from_message((competition_name,))
-        await competition.check_existing(pg_con)
-
-        group_name = f'{competition.name} group {random.randint(0, 10 ** 12)}'
+        group_name = f'{competition_name} group {random.randint(0, 10 ** 12)}'
         link = await create_start_link(bot=message.bot, payload=group_name + '_' + str(user_id), encode=True)
 
         try:
@@ -83,7 +85,7 @@ async def create_invite_link(message: types.Message, state: FSMContext, pg_con: 
                                      [(group_name,)])
             await pg_con.insert_data('bets.groups_in_competitions',
                                      ['group_id', 'competition_id', 'added_by', 'money', 'invite_link', 'starting_stage'],
-                                     [(generate_id(group_name), competition.id, user_id, money, link, start_stage)])
+                                     [(generate_id(group_name), competition_id, user_id, money, link, start_stage)])
             await pg_con.insert_data('bets.users_in_groups',
                                      ['user_id', 'group_id', 'added_by', 'is_admin'],
                                      [(user_id, generate_id(group_name), user_id, True)])
@@ -101,12 +103,12 @@ async def create_invite_link(message: types.Message, state: FSMContext, pg_con: 
         await message.answer(f"Invite link created:\n```{link}```\nSend it to users you want to add to this group",
                              parse_mode='MARKDOWN')
         await state.clear()
-        logger.info(f'User {user_id} created group {generate_id(group_name)} in competition {competition.id}')
+        logger.info(f'User {user_id} created group {generate_id(group_name)} in competition {competition_id}')
     else:
         await message.reply('It is not a number, please type the correct number')
         tries = int(user_data.get('tries', 0)) + 1
         if tries > 2:
-            await message.reply('You are mistaken 3 times, exiting from preparing groups')
+            await message.answer('You are mistaken 3 times, exiting from preparing groups')
             await state.clear()
             return
         await state.update_data(tries=tries)
@@ -117,7 +119,10 @@ def register_handlers_create_groups(router: Router, pg_con: PostgresConnection):
     async def create_invite_link_wrapper(message: types.Message, state: FSMContext):
         await create_invite_link(message, state, pg_con)
 
-    router.callback_query.register(choose_competition, StateFilter(ManageGroupsMenu.waiting_for_action_choice))
+    async def choose_competition_wrapper(call: types.CallbackQuery, state: FSMContext):
+        await choose_competition(call, state, pg_con)
+
+    router.callback_query.register(choose_competition_wrapper, StateFilter(ManageGroupsMenu.waiting_for_action_choice))
     router.callback_query.register(choose_start_stage, F.data.startswith('comps_'),
                                    StateFilter(OrderCreateGroup.waiting_for_comp_picking))
     router.callback_query.register(choose_money, F.data.startswith('startstage_'),

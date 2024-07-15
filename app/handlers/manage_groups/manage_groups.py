@@ -24,7 +24,7 @@ async def handle_manage_groups_choice(call: types.CallbackQuery, state: FSMConte
 
     action = call.data.split('_')[1]
     if action == "creategroup":
-        await choose_competition(call, state)
+        await choose_competition(call, state, pg_con)
     elif action == "deletegroup":
         await start_deleting_group(call, state, pg_con)
     elif action == "deleteuserfromgroup":

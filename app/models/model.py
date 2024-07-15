@@ -1,8 +1,7 @@
 from __future__ import annotations
 import dataclasses
 from app.dbworker.dbworker import PostgresConnection
-from app.utils.utilities import logger, generate_id
-import datetime
+from app.utils.utilities import logger
 
 
 @dataclasses.dataclass
@@ -36,47 +35,6 @@ class User:
             await pg_con.insert_data('bets.users', ['id', 'first_name', 'last_name', 'nickname'],
                                      [(self.id, self.first_name, self.last_name, self.nickname)])
             logger.info(f'User {self.nickname} created')
-
-
-@dataclasses.dataclass
-class Competition:
-    name: str
-    year: int
-    need_to_parse: bool
-    api_url: str
-    competition_code: str
-    id: int
-
-    @classmethod
-    def from_message(cls, row: tuple) -> Competition:
-        nm = str(row[0])
-        full_nm = str(nm) + ' ' + str(datetime.date.today().year)
-        nm_for_api = nm if nm != 'Euro' else 'EC'
-        return cls(
-            name=full_nm,
-            year=datetime.date.today().year,
-            need_to_parse=True,
-            api_url=f'https://api.football-data.org/v4/competitions/{nm_for_api}/matches',
-            competition_code=nm_for_api,
-            id=generate_id(full_nm)
-        )
-
-    async def check_existing(self, pg_con: PostgresConnection) -> None:
-        query = f"""
-        select 
-                name
-        from 
-                bets.competitions
-        where 
-                id = {self.id} 
-        """
-        if await pg_con.get_data(query):
-            pass
-        else:
-            await pg_con.insert_data('bets.competitions',
-                                     ['name', 'year', 'need_to_parse', 'api_url', 'competition_code'],
-                                     [(self.name, self.year, self.need_to_parse, self.api_url, self.competition_code)])
-            logger.info(f'Competition {self.name} created')
 
 
 @dataclasses.dataclass

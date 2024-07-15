@@ -30,13 +30,14 @@ def generate_id(value: str) -> int:
 
 
 class Competition:
-    def __init__(self, start_date: str, last_date: str, competition_code: str, season: str):
+    def __init__(self, start_date: str, last_date: str, code: str, season: str):
         self.start_date = create_dt(start_date)
         self.last_date = create_dt(last_date)
-        self.competition_code = competition_code
+        self.code = code
+        self.name = f"{code} {season}" if code != 'EC' else f"Euro {season}"
         self.season = season
-        self.id = generate_id(f"{competition_code} {season}" if competition_code != 'EC'
-                              else f"Euro {season}")
+        self.id = generate_id(self.name)
+        self.api_url = f'https://api.football-data.org/v4/competitions/{self.code}/matches'
         self.date_to_compare = datetime.strptime(last_date, '%Y-%m-%d')
 
 
@@ -82,7 +83,7 @@ class Match:
         self.stage = stage_map.get(stage_type)
 
 
-def process_data(data) -> (tp.List[Match], Competition):
+def process_data(data) -> tp.List[Match]:
     competition_code = data['competition']['code']
     season = data['filters']['season']
 
@@ -93,7 +94,7 @@ def process_data(data) -> (tp.List[Match], Competition):
 
     if datetime.now() > competition.date_to_compare + timedelta(days=1):
         logger.info("Competition last day is more than one day ahead, no need to process")
-        return [], competition
+        return []
 
     matches = []
     for match_data in data['matches']:
@@ -102,10 +103,10 @@ def process_data(data) -> (tp.List[Match], Competition):
             matches.append(match)
 
     logger.info(f"Processed {len(matches)} matches")
-    return matches, competition
+    return matches
 
 
-def fetch_and_process_data(api_url: str, api_key: str) -> (tp.List[Match], Competition):
+def fetch_and_process_data(api_url: str, api_key: str) -> tp.List[Match]:
     logger.info(f"Fetching data from API: {api_url}")
     response = requests.get(api_url, headers={'X-Auth-Token': api_key})
     if response.status_code == 200:
@@ -115,6 +116,26 @@ def fetch_and_process_data(api_url: str, api_key: str) -> (tp.List[Match], Compe
     else:
         logger.error("Failed to fetch data from API")
         raise Exception("Failed to fetch data from API")
+
+
+def fetch_competitions_to_choose(api_key: str) -> tp.List[Competition]:
+    comps = []
+    api_url = f'https://api.football-data.org/v4/competitions'
+    response = requests.get(api_url, headers={'X-Auth-Token': api_key})
+    if response.status_code == 200:
+        logger.info("Data fetched successfully from API")
+        data = response.json()
+    else:
+        logger.error("Failed to fetch data from API")
+        raise Exception("Failed to fetch data from API")
+
+    for competition in data['competitions']:
+        started = competition['currentSeason']['startDate']
+        if competition['code'] in ['WC', 'CL', 'EC']:
+            logger.info(f"Parsed competition {competition['code']}")
+            comps.append(Competition(started, competition['currentSeason']['endDate'], competition['code'],
+                                     started[:4]))
+    return comps
 
 
 class DatabaseHandler:
@@ -139,6 +160,49 @@ class DatabaseHandler:
             self.connection = None
             logger.info("Database connection closed")
 
+    def check_existing_competition(self, competition: Competition):
+        try:
+            self.connect()
+            cursor = self.connection.cursor()
+            query = f"""
+                    select 
+                            name
+                    from 
+                            bets.competitions
+                    where 
+                            id = {competition.id}
+                """
+            cursor.execute(query)
+            competition_db = cursor.fetchall()
+            cursor.close()
+        except Exception as e:
+            logger.error(f"Error fetching competitions: {e}")
+            return
+        finally:
+            self.close_connection()
+
+        if competition_db:
+            return
+        else:
+            logger.info(f"Inserting {competition.name} into the database")
+            insert_query = """
+                    INSERT INTO bets.competitions 
+                    (name, year, need_to_parse, api_url, competition_code, start_date, end_date)
+                    VALUES %s
+                """
+            insert_data = [(competition.name, competition.season, True, competition.api_url, competition.code,
+                           competition.start_date, competition.last_date)]
+            try:
+                self.connect()
+                cursor = self.connection.cursor()
+                psycopg2.extras.execute_values(cursor, insert_query, insert_data)
+                self.connection.commit()
+            except Exception as e:
+                logger.error(f"Error inserting or updating matches: {e}")
+                self.connection.rollback()
+            finally:
+                self.close_connection()
+
     def fetch_competitions_to_parse(self) -> tp.List[tp.Tuple[str, str]]:
         try:
             self.connect()
@@ -147,7 +211,6 @@ class DatabaseHandler:
                 SELECT api_url, competition_code
                 FROM bets.competitions
                 WHERE need_to_parse = true
-                or end_date is null
             """
             cursor.execute(query)
             competitions = cursor.fetchall()
@@ -220,21 +283,11 @@ class DatabaseHandler:
         finally:
             self.close_connection()
 
-    def update_competition(self, competition: Competition):
+    def update_competition(self):
 
         try:
             self.connect()
             cursor = self.connection.cursor()
-            date_query = """
-                update bets.competitions
-                set 
-                    start_date = %s,
-                    end_date = %s
-                where 
-                    id = %s
-                    and start_date is null
-                    and end_date is null
-            """
             parse_query = """
                 update bets.competitions
                 set 
@@ -242,7 +295,6 @@ class DatabaseHandler:
                 where 
                     now() - end_date > interval '2 days'
             """
-            cursor.execute(date_query, (competition.start_date, competition.last_date, competition.id))
             cursor.execute(parse_query)
             self.connection.commit()
             cursor.close()
@@ -260,13 +312,17 @@ def main():
                                  password=os.environ.get('PG_password'),
                                  host=os.environ.get('PG_host')
                                  )
-    competitions = db_handler.fetch_competitions_to_parse()
     api_key = os.environ.get('API_KEY')
 
+    competitions_to_add = fetch_competitions_to_choose(api_key)
+    for competition in competitions_to_add:
+        db_handler.check_existing_competition(competition)
+
+    competitions = db_handler.fetch_competitions_to_parse()
     for api_url, competition_code in competitions:
-        matches, competition = fetch_and_process_data(api_url, api_key)
+        db_handler.update_competition()
+        matches = fetch_and_process_data(api_url, api_key)
         db_handler.insert_or_update_matches(matches)
-        db_handler.update_competition(competition)
 
 
 if __name__ == '__main__':
